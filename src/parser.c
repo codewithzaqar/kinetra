@@ -66,6 +66,33 @@ static ASTNode* expression() {
     return node;
 }
 
+static ASTNode* statement() {
+    // print expression;
+    if (peek().type == TOKEN_PRINT) {
+        Token print_token = advance();
+
+        ASTNode* expr = expression();
+
+        if (peek().type == TOKEN_SEMICOLON) {
+            advance();
+        }
+
+        ASTNode* print_node = create_node(NODE_PRINT, print_token);
+        print_node->left = expr;
+
+        return print_node;
+    }
+
+    // expression;
+    ASTNode* expr = expression();
+
+    if (peek().type == TOKEN_SEMICOLON) {
+        advance();
+    }
+
+    return expr;
+}
+
 ASTNode* parse(Token* tokens, int token_count) {
     current_tokens = tokens;
     total_tokens = token_count;
@@ -73,9 +100,11 @@ ASTNode* parse(Token* tokens, int token_count) {
 
     ASTNode* root = create_node(NODE_PROGRAM, tokens[0]);
     
-    // For v0.0.1a01, we just parse a single mathematical expression/sim step
+    // For v0.0.1a03, we just parse a single mathematical expression/sim step
+    // expression;
+    // print expression;
     if (peek().type != TOKEN_EOF) {
-        root->left = expression();
+        root->left = statement();
     }
 
     return root;

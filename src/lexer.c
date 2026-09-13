@@ -58,7 +58,9 @@ Token* lex(const char* source, int* token_count) {
             id_buf[j] = '\0';
 
             // Check for Kinetra specific keywords
-            if (strcmp(id_buf, "sim") == 0 || strcmp(id_buf, "step") == 0) {
+            if (strcmp(id_buf, "print") == 0) {
+                tokens[count++] = make_token(TOKEN_PRINT, id_buf, 0, line);
+            } else if (strcmp(id_buf, "sim") == 0 || strcmp(id_buf, "step") == 0) {
                 tokens[count++] = make_token(TOKEN_SIM_KEYWORD, id_buf, 0, line);
             } else if (strcmp(id_buf, "vec3") == 0 || strcmp(id_buf, "mat4") == 0) {
                 tokens[count++] = make_token(TOKEN_MATH_KEYWORD, id_buf, 0, line);

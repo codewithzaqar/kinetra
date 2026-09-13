@@ -5,6 +5,12 @@ static double evaluate(ASTNode* node) {
     if (!node) return 0.0;
 
     switch (node->type) {
+        case NODE_PRINT: {
+            double printed_value = evaluate(node->left);
+            printf("[Kinetra] %g\n", printed_value);
+            return printed_value;
+        }
+
         case NODE_NUMBER_LITERAL:
             return node->token.value;
 
@@ -38,16 +44,25 @@ static double evaluate(ASTNode* node) {
 }
 
 void execute(ASTNode* ast) {
-    if (ast->type == NODE_PROGRAM && ast->left) {
-        double result = evaluate(ast->left);
-        printf("[VM] Computation Result: %f\n", result);
-        
-        // Example: Triggering HPC math subsystem from VM
-        Vec3 pos = {0.0, 0.0, 0.0};
-        Vec3 vel = {1.0, 2.0, 0.0};
-        double dt = 0.016; // 60 FPS simulation step
-        
-        Vec3 new_pos = sim_integrate_euler(pos, vel, dt);
-        printf("[VM] Sim Step -> Pos: (%.3f, %.3f, %.3f)\n", new_pos.x, new_pos.y, new_pos.z);
+    if (!ast || ast->type != NODE_PROGRAM || !ast->left) {
+        return;
     }
+
+    // print statement
+    if (ast->left->type == NODE_PRINT) {
+        evaluate(ast->left);
+        return;
+    }
+
+    // plain expression
+    double result = evaluate(ast->left);
+    printf("[VM] Computation Result: %f\n", result);
+        
+    // Example: Triggering HPC math subsystem from VM
+    Vec3 pos = {0.0, 0.0, 0.0};
+    Vec3 vel = {1.0, 2.0, 0.0};
+    double dt = 0.016; // 60 FPS simulation step
+        
+    Vec3 new_pos = sim_integrate_euler(pos, vel, dt);
+    printf("[VM] Sim Step -> Pos: (%.3f, %.3f, %.3f)\n", new_pos.x, new_pos.y, new_pos.z);
 }
