@@ -1,0 +1,32 @@
+# Build directories
+build/
+bin/
+obj/
+
+# Compiled object files
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.lib
+
+# Executables
+kinetra
+kinetra.exe
+*.out
+*.exe
+
+# Test/output files
+*.log
+*.tmp
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
