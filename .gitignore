@@ -2,6 +2,7 @@
 build/
 bin/
 obj/
+-p/
 
 # Compiled object files
 *.o
