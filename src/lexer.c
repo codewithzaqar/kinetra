@@ -28,6 +28,14 @@ Token* lex(const char* source, int* token_count) {
             continue;
         }
 
+        // Skip // line comments
+        if (c == '/' && i + 1 < len && source[i + 1] == '/') {
+            while (i < len && source[i] != '\n') {
+                i++;
+            }
+            continue;
+        }
+
         // Numbers (Support for floats/doubles for math)
         if (isdigit(c) || (c == '.' && isdigit(source[i+1]))) {
             char num_buf[64];
