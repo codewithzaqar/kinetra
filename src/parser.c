@@ -32,8 +32,25 @@ static ASTNode* create_node(ASTNodeType type, Token token) {
     return node;
 }
 
-// Forward declaration for recursive descent
+static void add_statement(ASTNode* node, ASTNode* stmt) {
+    ASTNode** tmp = realloc(
+        node->statements,
+        sizeof(ASTNode*) * (node->statement_count + 1)
+    );
+
+    if (!tmp) {
+        fprintf(stderr, "[Parser Error] Out of memory\n");
+        exit(1);
+    }
+
+    node->statements = tmp;
+    node->statements[node->statement_count++] = stmt;
+}
+
+// Forward declaration
 static ASTNode* expression();
+static ASTNode* statement();
+static void parse_block_into(ASTNode* node);
 
 static ASTNode* primary() {
     Token t = peek();
@@ -109,6 +126,41 @@ static ASTNode* expression() {
     return node;
 }
 
+static void parse_block_into(ASTNode* node) {
+    if (peek().type != TOKEN_LBRACE) {
+        fprintf(
+            stderr,
+            "[Parser Error] Expected '{' at line %d\n",
+            peek().line
+        );
+        exit(1);
+    }
+
+    advance(); // consume '{'
+
+    while (peek().type != TOKEN_RBRACE && peek().type != TOKEN_EOF) {
+        // Allow empty statements
+        if (peek().type == TOKEN_SEMICOLON) {
+            advance();
+            continue;
+        }
+
+        ASTNode* stmt = statement();
+        add_statement(node, stmt);
+    }
+
+    if (peek().type != TOKEN_RBRACE) {
+        fprintf(
+            stderr,
+            "[Parser Error] Expected '}' at line %d\n",
+            peek().line
+        );
+        exit(1);
+    }
+
+    advance(); // consume '}'
+}
+
 static ASTNode* statement() {
     // print expression;
     if (peek().type == TOKEN_PRINT) {
@@ -165,6 +217,43 @@ static ASTNode* statement() {
         return node;
     }
 
+    // step expression;
+    if (peek().type == TOKEN_STEP) {
+        Token step_token = advance();
+
+        ASTNode* expr = expression();
+
+        if (peek().type == TOKEN_SEMICOLON) {
+            advance();
+        }
+
+        ASTNode* node = create_node(NODE_STEP, step_token);
+        node->left = expr;
+
+        return node;
+    }
+
+    // sim expression {...}
+    // sim {step expression ...}
+    if (peek().type == TOKEN_SIM) {
+        Token sim_token = advance();
+
+        ASTNode* count_expr = NULL;
+
+        // Optional step-count expression:
+        // sim 3 {...}
+        if (peek().type != TOKEN_LBRACE) {
+            count_expr = expression();
+        }
+
+        ASTNode* node = create_node(NODE_SIMULATION_BLOCK, sim_token);
+        node->left = count_expr;
+
+        parse_block_into(node);
+
+        return node;
+    }
+
     // identifier = expression;
     if (
         peek().type == TOKEN_IDENTIFIER &&
@@ -212,19 +301,7 @@ ASTNode* parse(Token* tokens, int token_count) {
         }
 
         ASTNode* stmt = statement();
-
-        ASTNode** tmp = realloc(
-            root->statements,
-            sizeof(ASTNode*) * (root->statement_count + 1)
-        );
-
-        if (!tmp) {
-            fprintf(stderr, "[Parser Error] Out of memory\n");
-            exit(1);
-        }
-
-        root->statements = tmp;
-        root->statements[root->statement_count++] = stmt;
+        add_statement(root, stmt);
     }
 
     return root;
@@ -233,16 +310,27 @@ ASTNode* parse(Token* tokens, int token_count) {
 void free_ast(ASTNode* node) {
     if (!node) return;
 
-    if (node->type == NODE_PROGRAM && node->statements) {
-        for (int i = 0; i < node->statement_count; i++) {
-            free_ast(node->statements[i]);
+    // Nodes that own statement lists
+    if (
+        node->type == NODE_PROGRAM || 
+        node->type == NODE_SIMULATION_BLOCK
+    ) {
+        if (node->statements) {
+            for (int i = 0; i < node->statement_count; i++) {
+                free_ast(node->statements[i]);
+            }
+
+            free(node->statements);
         }
 
-        free(node->statements);
-    } else {
         free_ast(node->left);
         free_ast(node->right);
+        free(node);
+
+        return;
     }
 
+    free_ast(node->left);
+    free_ast(node->right);
     free(node);
 }

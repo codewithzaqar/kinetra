@@ -1,8 +1,16 @@
-// Kinetra v0.0.1a04 test
+// Kinetra v0.0.1a05 test
 
-let x = 10.5;
-let y = 4.2;
+let x = 0.0;
 
-let result = (x + y) * 2.0;
+sim 3 {
+	x = x + 1.0;
+	print x;
+}
 
-print result;
+let y = 0.0;
+
+sim {
+	step 2;
+	y = y + 5.0;
+	print y;
+}

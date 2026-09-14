@@ -96,10 +96,14 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_LET, id_buf, 0, line);
             } else if (strcmp(id_buf, "print") == 0) {
                 tokens[count++] = make_token(TOKEN_PRINT, id_buf, 0, line);
-            } else if (strcmp(id_buf, "sim") == 0 || strcmp(id_buf, "step") == 0) {
-                tokens[count++] = make_token(TOKEN_SIM_KEYWORD, id_buf, 0, line);
+            } else if (strcmp(id_buf, "sim") == 0) {
+                tokens[count++] = make_token(TOKEN_SIM, id_buf, 0, line);
+            } else if (strcmp(id_buf, "step") == 0) {
+                tokens[count++] = make_token(TOKEN_STEP, id_buf, 0, line);
             } else if (strcmp(id_buf, "vec3") == 0 || strcmp(id_buf, "mat4") == 0) {
                 tokens[count++] = make_token(TOKEN_MATH_KEYWORD, id_buf, 0, line);
+            } else if (strcmp(id_buf, "particle") == 0 || strcmp(id_buf, "integrate") == 0) {
+                tokens[count++] = make_token(TOKEN_SIM_KEYWORD, id_buf, 0, line);
             } else {
                 tokens[count++] = make_token(TOKEN_IDENTIFIER, id_buf, 0, line);
             }
@@ -137,6 +141,14 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_RPAREN, ")", 0, line);
                 break;
 
+            case '{':
+                tokens[count++] = make_token(TOKEN_LBRACE, "{", 0, line);
+                break;
+
+            case '}':
+                tokens[count++] = make_token(TOKEN_RBRACE, "}", 0, line);
+                break;
+
             case ';':
                 tokens[count++] = make_token(TOKEN_SEMICOLON, ";", 0, line);
                 break;
@@ -145,8 +157,11 @@ Token* lex(const char* source, int* token_count) {
                 fprintf(
                     stderr,
                     "[Lexer Error] Unexpected character '%c' (0x%02X) at line %d\n",
-                    c, c, line
+                    c, 
+                    c, 
+                    line
                 );
+                
                 tokens[count++] = make_token(TOKEN_ERROR, "?", 0, line);
                 break;
         }

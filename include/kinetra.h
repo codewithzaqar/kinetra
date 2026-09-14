@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define KINETRA_VERSION "0.0.1a04"
+#define KINETRA_VERSION "0.0.1a05"
 #define MAX_TOKENS 4096
 #define MAX_AST_NODES 2048
 
@@ -18,6 +18,9 @@ typedef enum {
 
 	TOKEN_LET,
 	TOKEN_PRINT,
+
+	TOKEN_SIM,
+	TOKEN_STEP,
 
 	TOKEN_SIM_KEYWORD,
 	TOKEN_MATH_KEYWORD,
@@ -31,6 +34,10 @@ typedef enum {
 
 	TOKEN_LPAREN,
 	TOKEN_RPAREN,
+
+	TOKEN_LBRACE,
+	TOKEN_RBRACE,
+
 	TOKEN_SEMICOLON,
 
 	TOKEN_ERROR
@@ -51,6 +58,7 @@ typedef enum {
 	NODE_LET,
 	NODE_ASSIGN,
 
+	NODE_STEP,
 	NODE_SIMULATION_BLOCK,
 
 	NODE_BINARY_OP,
@@ -65,7 +73,7 @@ typedef struct ASTNode {
 	struct ASTNode* left;
 	struct ASTNode* right;
 
-	// Used by NODE_PROGRAM in v0.0.1a04
+	// Used by NODE_PROGRAM and NODE_SIMULATION_BLOCK
 	struct ASTNode** statements;
 	int statement_count;
 } ASTNode;

@@ -44,6 +44,9 @@ static void set_variable(const char* name, double value) {
     variable_count++;
 }
 
+static double evaluate(ASTNode* node);
+static void execute_statement(ASTNode* node);
+
 static double evaluate(ASTNode* node) {
     if (!node) return 0.0;
 
@@ -114,8 +117,62 @@ static double evaluate(ASTNode* node) {
             return evaluate(node->left);
         }
 
+        case NODE_STEP: {
+            return evaluate(node->left);
+        }
+
+        case NODE_SIMULATION_BLOCK: {
+            return 0.0;
+        }
+
         default: {
             return 0.0;
+        }
+    }
+}
+
+static void execute_sim(ASTNode* node) {
+    double step_count = 0.0;
+
+    // Form:
+    // sim expression {...}
+    if (node->left) {
+        step_count = evaluate(node->left);
+    }
+
+    // Form:
+    // sim {step expression ...}
+    else {
+        for (int i = 0; i < node->statement_count; i++) {
+            ASTNode* stmt = node->statements[i];
+
+            if (stmt->type == NODE_STEP) {
+                step_count = evaluate(stmt -> left);
+                break;
+            }
+        }
+    }
+
+    long steps = (long)step_count;
+
+    if (steps < 0) {
+        steps = 0;
+    }
+
+    for (long i = 0; i < steps; i++) {
+        // Built-in loop index
+        set_variable("step_index", (double)i);
+
+        for (int j = 0; j < node->statement_count; j++) {
+            ASTNode* stmt = node->statements[j];
+
+            // The step declaration controls the loop;
+            // it is not executed as a normal body statement.
+            if (stmt->type == NODE_STEP) {
+                continue;
+            }
+
+            execute_statement(stmt);
         }
     }
 }
@@ -139,6 +196,16 @@ static void execute_statement(ASTNode* node) {
         case NODE_ASSIGN: {
             double value = evaluate(node->left);
             set_variable(node->token.lexeme, value);
+            break;
+        }
+
+        case NODE_STEP: {
+            // Step nodes are handles by execute_sim().
+            break;
+        }
+
+        case NODE_SIMULATION_BLOCK: {
+            execute_sim(node);
             break;
         }
 
