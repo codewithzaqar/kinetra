@@ -1,2 +1,8 @@
-// Kinetra v0.0.1a03 test
-print (10.5 + 4.2) * 2.0;
+// Kinetra v0.0.1a04 test
+
+let x = 10.5;
+let y = 4.2;
+
+let result = (x + y) * 2.0;
+
+print result;

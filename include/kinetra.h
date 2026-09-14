@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define KINETRA_VERSION "0.0.1a03"
+#define KINETRA_VERSION "0.0.1a04"
 #define MAX_TOKENS 4096
 #define MAX_AST_NODES 2048
 
@@ -15,16 +15,24 @@ typedef enum {
 	TOKEN_EOF,
 	TOKEN_NUMBER,
 	TOKEN_IDENTIFIER,
+
+	TOKEN_LET,
+	TOKEN_PRINT,
+
 	TOKEN_SIM_KEYWORD,
 	TOKEN_MATH_KEYWORD,
-	TOKEN_PRINT,
+	
+	TOKEN_ASSIGN,
+
 	TOKEN_OP_ADD,
 	TOKEN_OP_SUB,
 	TOKEN_OP_MUL,
 	TOKEN_OP_DIV,
+
 	TOKEN_LPAREN,
 	TOKEN_RPAREN,
 	TOKEN_SEMICOLON,
+
 	TOKEN_ERROR
 } TokenType;
 
@@ -38,8 +46,13 @@ typedef struct {
 // --- AST Definitions ---
 typedef enum {
 	NODE_PROGRAM,
+
 	NODE_PRINT,
+	NODE_LET,
+	NODE_ASSIGN,
+
 	NODE_SIMULATION_BLOCK,
+
 	NODE_BINARY_OP,
 	NODE_NUMBER_LITERAL,
 	NODE_VARIABLE
@@ -48,19 +61,19 @@ typedef enum {
 typedef struct ASTNode {
 	ASTNodeType type;
 	Token token;
+
 	struct ASTNode* left;
 	struct ASTNode* right;
+
+	// Used by NODE_PROGRAM in v0.0.1a04
+	struct ASTNode** statements;
+	int statement_count;
 } ASTNode;
 
 // --- Function Prototypes ---
-// Lexer
 Token* lex(const char* source, int* token_count);
-
-// Parser
 ASTNode* parse(Token* tokens, int token_count);
 void free_ast(ASTNode* node);
-
-// VM
 void execute(ASTNode* ast);
 
 #endif
