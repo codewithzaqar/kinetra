@@ -12,6 +12,20 @@ static Token advance() {
     return current_tokens[current++]; 
 }
 
+static Token expect(TokenType type, const char* message) {
+    if (peek().type != type) {
+        fprintf(
+            stderr,
+            "[Parser Error] %s at line %d\n",
+            message,
+            peek().line
+        );
+        exit(1);
+    }
+
+    return advance();
+}
+
 static ASTNode* create_node(ASTNodeType type, Token token) {
     ASTNode* node = malloc(sizeof(ASTNode));
 
@@ -25,6 +39,7 @@ static ASTNode* create_node(ASTNodeType type, Token token) {
 
     node->left = NULL;
     node->right = NULL;
+    node->third = NULL;
 
     node->statements = NULL;
     node->statement_count = 0;
@@ -65,21 +80,38 @@ static ASTNode* primary() {
         return create_node(NODE_VARIABLE, t);
     }
 
+    // vec3(expression, expression, expression)
+    if (t.type == TOKEN_VEC3) {
+        Token vec_token = advance();
+
+        expect(TOKEN_LPAREN, "Expected '(' after 'vec3'");
+
+        ASTNode* x = expression();
+
+        expect(TOKEN_COMMA, "Expected ',' in vec3 constructor");
+
+        ASTNode* y = expression();
+
+        expect(TOKEN_COMMA, "Expected ',' in vec3 constructor");
+
+        ASTNode* z = expression();
+
+        expect(TOKEN_RPAREN, "Expected ')' after vec3 constructor");
+
+        ASTNode* node = create_node(NODE_VEC3, vec_token);
+        node->left = x;
+        node->right = y;
+        node->third = z;
+
+        return node;
+    }
+
     if (t.type == TOKEN_LPAREN) {
         advance();
 
         ASTNode* expr = expression();
 
-        if (peek().type != TOKEN_RPAREN) {
-            fprintf(
-                stderr, 
-                "[Parser Error] Expected ')' at line %d\n", 
-                t.line
-            );
-            exit(1);
-        }
-
-        advance(); // consume ')'
+        expect(TOKEN_RPAREN, "Expected ')'");
 
         return expr;
     }
@@ -127,16 +159,7 @@ static ASTNode* expression() {
 }
 
 static void parse_block_into(ASTNode* node) {
-    if (peek().type != TOKEN_LBRACE) {
-        fprintf(
-            stderr,
-            "[Parser Error] Expected '{' at line %d\n",
-            peek().line
-        );
-        exit(1);
-    }
-
-    advance(); // consume '{'
+    expect(TOKEN_LBRACE, "Expected '{'");
 
     while (peek().type != TOKEN_RBRACE && peek().type != TOKEN_EOF) {
         // Allow empty statements
@@ -149,16 +172,7 @@ static void parse_block_into(ASTNode* node) {
         add_statement(node, stmt);
     }
 
-    if (peek().type != TOKEN_RBRACE) {
-        fprintf(
-            stderr,
-            "[Parser Error] Expected '}' at line %d\n",
-            peek().line
-        );
-        exit(1);
-    }
-
-    advance(); // consume '}'
+    expect(TOKEN_RBRACE, "Expected '}'");
 }
 
 static ASTNode* statement() {
@@ -193,17 +207,7 @@ static ASTNode* statement() {
 
         Token id = advance();
 
-        if (peek().type != TOKEN_ASSIGN) {
-            fprintf(
-                stderr,
-                "[Parser Error] Expected '=' after variable name '%s' at line %d\n",
-                id.lexeme,
-                id.line
-            );
-            exit(1);
-        }
-
-        advance(); // consume '='
+        expect(TOKEN_ASSIGN, "Expected '=' after variable name");
 
         ASTNode* expr = expression();
 
@@ -325,6 +329,7 @@ void free_ast(ASTNode* node) {
 
         free_ast(node->left);
         free_ast(node->right);
+        free_ast(node->third);
         free(node);
 
         return;
@@ -332,5 +337,6 @@ void free_ast(ASTNode* node) {
 
     free_ast(node->left);
     free_ast(node->right);
+    free_ast(node->third);
     free(node);
 }

@@ -3,15 +3,68 @@
 
 #define MAX_VARIABLES 1024
 
+typedef enum {
+    K_VALUE_NUMBER,
+    K_VALUE_VEC3
+} KValueType;
+
+typedef struct {
+    KValueType type;
+
+    double number;
+
+    double x;
+    double y;
+    double z;
+} KValue;
+
 typedef struct {
     char name[256];
-    double value;
+    KValue value;
 } Variable;
 
 static Variable variables[MAX_VARIABLES];
 static int variable_count = 0;
 
-static double* find_variable(const char* name) {
+static void runtime_error(const char* message, int line) {
+    fprintf(
+        stderr,
+        "[VM Error] %s at line %d\n",
+        message,
+        line
+    );
+    exit(1);
+}
+
+static KValue make_number(double value) {
+    KValue v;
+    v.type = K_VALUE_NUMBER;
+    v.number = value;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    return v;
+}
+
+static KValue make_vec3(double x, double y, double z) {
+    KValue v;
+    v.type = K_VALUE_VEC3;
+    v.number = 0.0;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    return v;
+}
+
+static bool is_number(KValue value) {
+    return value.type == K_VALUE_NUMBER;
+}
+
+static bool is_vec3(KValue value) {
+    return value.type == K_VALUE_VEC3;
+}
+
+static KValue* find_variable(const char* name) {
     for (int i = 0; i < variable_count; i++) {
         if (strcmp(variables[i].name, name) == 0) {
             return &variables[i].value;
@@ -21,8 +74,8 @@ static double* find_variable(const char* name) {
     return NULL;
 }
 
-static void set_variable(const char* name, double value) {
-    double* existing = find_variable(name);
+static void set_variable(const char* name, KValue value) {
+    KValue* existing = find_variable(name);
 
     if (existing) {
         *existing = value;
@@ -44,65 +97,175 @@ static void set_variable(const char* name, double value) {
     variable_count++;
 }
 
-static double evaluate(ASTNode* node);
+static void set_variable_number(const char* name, double value) {
+    set_variable(name, make_number(value));
+}
+
+static void print_value(KValue value) {
+    if (is_number(value)) {
+        printf("[Kinetra] %g\n", value.number);
+    } else if (is_vec3(value)) {
+        printf(
+            "[Kinetra] vec3(%g, %g, %g)\n",
+            value.x,
+            value.y,
+            value.z
+        );
+    }
+}
+
+static KValue evaluate(ASTNode* node);
 static void execute_statement(ASTNode* node);
 
-static double evaluate(ASTNode* node) {
-    if (!node) return 0.0;
+static KValue apply_binary_op(Token op, KValue left, KValue right) {
+    switch (op.type) {
+        case TOKEN_OP_ADD: {
+            if (is_number(left) && is_number(right)) {
+                return make_number(left.number + right.number);
+            }
+
+            if (is_vec3(left) && is_vec3(right)) {
+                return make_vec3(
+                    left.x + right.x,
+                    left.y + right.y,
+                    left.z + right.z
+                );
+            }
+
+            runtime_error("Invalid operands to '+'", op.line);
+            return make_number(0.0);
+        } 
+
+        case TOKEN_OP_SUB: {
+            if (is_number(left) && is_number(right)) {
+                return make_number(left.number - right.number);
+            }
+
+            if (is_vec3(left) && is_vec3(right)) {
+                return make_vec3(
+                    left.x - right.x,
+                    left.y - right.y,
+                    left.z - right.z
+                );
+            }
+
+            runtime_error("Invalid operands to '-'", op.line);
+            return make_number(0.0);
+        }
+
+        case TOKEN_OP_MUL: {
+            if (is_number(left) && is_number(right)) {
+                return make_number(left.number * right.number);
+            }
+
+            if (is_vec3(left) && is_number(right)) {
+                return make_vec3(
+                    left.x * right.number,
+                    left.y * right.number,
+                    left.z * right.number
+                );
+            }
+
+            if (is_number(left) && is_vec3(right)) {
+                return make_vec3(
+                    right.x * left.number,
+                    right.y * left.number,
+                    right.z * left.number
+                );
+            }
+
+            if (is_vec3(left) && is_vec3(right)) {
+                return make_vec3(
+                    left.x * right.x,
+                    left.y * right.y,
+                    left.z * right.z
+                );
+            }
+
+            runtime_error("Invalid operands to '*'", op.line);
+            return make_number(0.0);
+        }
+
+        case TOKEN_OP_DIV: {
+            if (is_number(left) && is_number(right)) {
+                if (right.number == 0.0) {
+                    runtime_error("Division by zero", op.line);
+                }
+
+                return make_number(left.number / right.number);
+            }
+
+            if (is_vec3(left) && is_number(right)) {
+                if (right.number == 0.0) {
+                    runtime_error("Division by zero", op.line);
+                }
+
+                return make_vec3(
+                    left.x / right.number,
+                    left.y / right.number,
+                    left.z / right.number
+                );
+            }
+
+            runtime_error("Invalid operands to '/'", op.line);
+            return make_number(0.0);
+        }
+
+        default: {
+            runtime_error("Unknown operands", op.line);
+            return make_number(0.0);
+        }
+    }
+}
+
+static KValue evaluate(ASTNode* node) {
+    if (!node) return make_number(0.0);
 
     switch (node->type) {
         case NODE_NUMBER_LITERAL: {
-            return node->token.value;
+            return make_number(node->token.value);
         }
 
         case NODE_VARIABLE: {
-            double* value = find_variable(node->token.lexeme);
+            KValue* value = find_variable(node->token.lexeme);
 
             if (!value) {
-                fprintf(
-                    stderr,
-                    "[VM Error] Undefined variables '%s' at line %d\n",
-                    node->token.lexeme,
+                runtime_error(
+                    "Undefined variable",
                     node->token.line
                 );
-
-                return 0.0;
             }
 
             return *value;
         }
 
-        case NODE_BINARY_OP: {
-            double left_value = evaluate(node->left);
-            double right_value = evaluate(node->right);
-
-            switch (node->token.type) {
-                case TOKEN_OP_ADD:
-                    return left_value + right_value;
-
-                case TOKEN_OP_SUB:
-                    return left_value - right_value;
-
-                case TOKEN_OP_MUL:
-                    return left_value * right_value;
-
-                case TOKEN_OP_DIV:
-                    if (right_value == 0.0) {
-                        fprintf(
-                            stderr,
-                            "[VM Error] Division by zero at line %d\n",
-                            node->token.line
-                        );
-                        exit(1);
-                    }
-
-                    return left_value / right_value;
-
-                default:
-                    break;
+        case NODE_VEC3: {
+            if (!node->left || !node->right || !node->third) {
+                runtime_error(
+                    "Invalid vec3 constructor",
+                    node->token.line
+                );
             }
 
-            return 0.0;
+            KValue x = evaluate(node->left);
+            KValue y = evaluate(node->right);
+            KValue z = evaluate(node->third);
+
+            if (!is_number(x) || !is_number(y) || !is_number(z)) {
+                runtime_error(
+                    "vec3 arguments must be numbers",
+                    node->token.line
+                );
+            }
+
+            return make_vec3(x.number, y.number, z.number);
+        }
+
+        case NODE_BINARY_OP: {
+            KValue left = evaluate(node->left);
+            KValue right = evaluate(node->right);
+
+            return apply_binary_op(node->token, left, right);
         }
 
         case NODE_PRINT: {
@@ -122,11 +285,11 @@ static double evaluate(ASTNode* node) {
         }
 
         case NODE_SIMULATION_BLOCK: {
-            return 0.0;
+            return make_number(0.0);
         }
 
         default: {
-            return 0.0;
+            return make_number(0.0);
         }
     }
 }
@@ -137,7 +300,16 @@ static void execute_sim(ASTNode* node) {
     // Form:
     // sim expression {...}
     if (node->left) {
-        step_count = evaluate(node->left);
+        KValue count_value = evaluate(node->left);
+
+        if (!is_number(count_value)) {
+            runtime_error(
+                "sim step count must be a number",
+                node->token.line
+            );
+        }
+
+        step_count = count_value.number;
     }
 
     // Form:
@@ -147,7 +319,16 @@ static void execute_sim(ASTNode* node) {
             ASTNode* stmt = node->statements[i];
 
             if (stmt->type == NODE_STEP) {
-                step_count = evaluate(stmt -> left);
+                KValue count_value = evaluate(stmt->left);
+
+                if (!is_number(count_value)) {
+                    runtime_error(
+                        "step count must be a number",
+                        stmt->token.line
+                    );
+                }
+
+                step_count = count_value.number;
                 break;
             }
         }
@@ -159,9 +340,16 @@ static void execute_sim(ASTNode* node) {
         steps = 0;
     }
 
+    double dt_value = 0.0;
+
+    if (steps > 0) {
+        dt_value = 1.0 / (double)steps;
+    }
+
     for (long i = 0; i < steps; i++) {
         // Built-in loop index
-        set_variable("step_index", (double)i);
+        set_variable_number("step_index", (double)i);
+        set_variable_number("dt", dt_value);
 
         for (int j = 0; j < node->statement_count; j++) {
             ASTNode* stmt = node->statements[j];
@@ -182,19 +370,19 @@ static void execute_statement(ASTNode* node) {
 
     switch (node->type) {
         case NODE_PRINT: {
-            double value = evaluate(node->left);
-            printf("[Kinetra] %g\n", value);
+            KValue value = evaluate(node->left);
+            print_value(value);
             break;
         }
 
         case NODE_LET: {
-            double value = evaluate(node->left);
+            KValue value = evaluate(node->left);
             set_variable(node->token.lexeme, value);
             break;
         }
 
         case NODE_ASSIGN: {
-            double value = evaluate(node->left);
+            KValue value = evaluate(node->left);
             set_variable(node->token.lexeme, value);
             break;
         }

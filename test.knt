@@ -1,16 +1,16 @@
-// Kinetra v0.0.1a05 test
+// Kinetra v0.0.1a06 test
 
-let x = 0.0;
+let a = vec3(1.0, 2.0, 3.0);
+let b = vec3(4.0, 5.0, 6.0);
+
+let c = a + b;
+
+print c;
+
+let p = vec3(0.0, 0.0, 0.0);
+let v = vec3(1.0, 0.0, 0.0);
 
 sim 3 {
-	x = x + 1.0;
-	print x;
-}
-
-let y = 0.0;
-
-sim {
-	step 2;
-	y = y + 5.0;
-	print y;
+	p = p + v * dt;
+	print p;
 }
