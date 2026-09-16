@@ -1,14 +1,21 @@
 # Kinetra Changelog
 
-## [0.0.1a08] - 2026-09-16
+## [0.0.1a09] - 2026-09-16
 
 ### Added
 
+- Added boolean literals `true` and `false`.
+- Added boolean value type to the VM.
+- Added comparison operators: `<`, `>`, `<=`, `>=`, `==`, `!=`.
+- Added logical operators: `&&`, `||`, `!`.
+- Added short-circuit evaluation for `&&` and `||`.
+- Added `if / else if / else` control flow with brace blocks.
 - Added numeric built-ins: `sqrt()`, `abs()`, `min()`, `max()`.
 - Added trig built-ins: `sin()`, `cos()`, `tan()`.
 - Added built-in vector math functions: `dot()`, `cross()`, `length()`, `normalize()`.
 - Added a basic value model supporting numbers and vector values.
 - Added custom simulation time-step syntax: `sim <count> dt <value> {...}`.
+- Added `==` / `!=` support for `vec3` and boolean values.
 - Added `vec3(x, y, z)` constructor syntax.
 - Added `vec3_cross()` to the HPC math library.
 - Added `vec3_length()` to the HPC math library.
@@ -37,11 +44,28 @@
 - Added `TOKEN_COMMA`.
 - Added `TOKEN_BUILTIN`.
 - Added `TOKEN_DT`.
+- Added `TOKEN_IF`.
+- Added `TOKEN_ELSE`.
+- Added `TOKEN_TRUE`.
+- Added `TOKEN_FALSE`.
+- Added `TOKEN_LT`.
+- Added `TOKEN_GT`.
+- Added `TOKEN_LE`.
+- Added `TOKEN_GE`.
+- Added `TOKEN_EQ`.
+- Added `TOKEN_NE`.
+- Added `TOKEN_AND`.
+- Added `TOKEN_OR`.
+- Added `TOKEN_NOT`.
 - Added `NODE_ASSIGN`.
 - Added `NODE_PRINT` AST node.
 - Added `NODE_STEP`.
 - Added `NODE_VEC3`.
 - Added `NODE_CALL`.
+- Added `NODE_IF`.
+- Added `NODE_BLOCK`.
+- Added `NODE_UNARY_OP`.
+- Added `NODE_BOOLEAN_LITERAL`.
 - Added vector addition.
 - Added vector subtraction.
 - Added scalar-vector multiplication.
@@ -61,6 +85,9 @@
 
 ### Changed
 
+- Expression parser now uses a full precedence chain:
+	`||` -> `&&` -> comparison -> additive -> term -> unary -> primary.
+- `if`, `else`, `true`, `false` are now reserved words.
 - `sim` now stores an optional custom `dt` expression in `node->right`.
 - Automatic `dt = 1 / steps` only applies when no custom `dt` is given.
 - `dt` is now a reserved word and cannot be used as a variable name.

@@ -6,7 +6,8 @@
 
 typedef enum {
     K_VALUE_NUMBER,
-    K_VALUE_VEC3
+    K_VALUE_VEC3,
+    K_VALUE_BOOL
 } KValueType;
 
 typedef struct {
@@ -17,6 +18,8 @@ typedef struct {
     double x;
     double y;
     double z;
+
+    bool boolean;
 } KValue;
 
 typedef struct {
@@ -55,6 +58,31 @@ static KValue make_vec3(double x, double y, double z) {
     v.y = y;
     v.z = z;
     return v;
+}
+
+static KValue make_bool(bool value) {
+    KValue v;
+    v.type = K_VALUE_BOOL;
+    v.number = 0.0;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    v.boolean = value;
+    return v;
+}
+
+static bool is_bool(KValue value) {
+    return value.type == K_VALUE_BOOL;
+}
+
+static bool require_bool(KValue value, const char* context, int line) {
+    if (!is_bool(value)) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s expects a boolean", context);
+        runtime_error(msg, line);
+    }
+
+    return value.boolean;
 }
 
 static bool is_number(KValue value) {
@@ -112,6 +140,8 @@ static void print_value(KValue value) {
             value.y,
             value.z
         );
+    } else if (is_bool(value)) {
+        printf("[Kinetra] %s\n", value.boolean ? "true" : "false");
     }
 }
 
@@ -231,6 +261,84 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
             }
 
             runtime_error("Invalid operands to '/'", op.line);
+            return make_number(0.0);
+        }
+
+        case TOKEN_LT: {
+            if (is_number(left) && is_number(right)) {
+                return make_bool(left.number < right.number);
+            }
+
+            runtime_error("Invalid operands to '<'", op.line);
+            return make_number(0.0);
+        }
+
+        case TOKEN_GT: {
+            if (is_number(left) && is_number(right)) {
+                return make_bool(left.number > right.number);
+            }
+
+            runtime_error("Invalid operands to '>'", op.line);
+            return make_number(0.0);
+        }
+
+        case TOKEN_LE: {
+            if (is_number(left) && is_number(right)) {
+                return make_bool(left.number <= right.number);
+            }
+
+            runtime_error("Invalid operands to '<='", op.line);
+            return make_number(0.0);
+        } 
+
+        case TOKEN_GE: {
+            if (is_number(left) && is_number(right)) {
+                return make_bool(left.number >= right.number);
+            }
+
+            runtime_error("Invalid operands to '>='", op.line);
+            return make_number(0.0);
+        }
+
+        case TOKEN_EQ: {
+            if (is_number(left) && is_number(right)) {
+                return make_bool(left.number == right.number);
+            }
+
+            if (is_vec3(left) && is_vec3(right)) {
+                return make_bool(
+                    left.x == right.x &&
+                    left.y == right.y &&
+                    left.z == right.z
+                );
+            }
+
+            if (is_bool(left) && is_bool(right)) {
+                return make_bool(left.boolean == right.boolean);
+            }
+
+            runtime_error("Invalid operands to '=='", op.line);
+            return make_number(0.0);
+        }
+
+        case TOKEN_NE: {
+            if (is_number(left) && is_number(right)) {
+                return make_bool(left.number != right.number);
+            }
+
+            if (is_vec3(left) && is_vec3(right)) {
+                return make_bool(
+                    left.x != right.x ||
+                    left.y != right.y ||
+                    left.z != right.z
+                );
+            }
+
+            if (is_bool(left) && is_bool(right)) {
+                return make_bool(left.boolean != right.boolean); 
+            }
+
+            runtime_error("Invalid operands to '!='", op.line);
             return make_number(0.0);
         }
 
@@ -411,6 +519,32 @@ static KValue evaluate(ASTNode* node) {
         } 
 
         case NODE_BINARY_OP: {
+            // Short-circuit &&
+            if (node->token.type == TOKEN_AND) {
+                KValue left =  evaluate(node->left);
+                bool lb = require_bool(left, "&&", node->token.line);
+
+                if (!lb) {
+                    return make_bool(false);
+                }
+
+                KValue right = evaluate(node->right);
+                return make_bool(require_bool(right, "&&", node->token.line));
+            }
+
+            // Short-circuit ||
+            if (node->token.type == TOKEN_OR) {
+                KValue left = evaluate(node->left);
+                bool lb = require_bool(left, "||", node->token.line);
+
+                if (lb) {
+                    return make_bool(true);
+                }
+
+                KValue right = evaluate(node->right);
+                return make_bool(require_bool(right, "||", node->token.line));
+            }
+
             KValue left = evaluate(node->left);
             KValue right = evaluate(node->right);
 
@@ -434,6 +568,28 @@ static KValue evaluate(ASTNode* node) {
         }
 
         case NODE_SIMULATION_BLOCK: {
+            return make_number(0.0);
+        }
+
+        case NODE_BOOLEAN_LITERAL: {
+            return make_bool(node->token.type == TOKEN_TRUE);
+        }
+
+        case NODE_UNARY_OP: {
+            if (node->token.type == TOKEN_NOT) {
+                KValue operand = evaluate(node->left);
+                return make_bool(!require_bool(operand, "!", node->token.line));
+            }
+
+            runtime_error("Unknown unary operator", node->token.line);
+            return make_number(0.0);
+        }
+
+        case NODE_IF: {
+            return make_number(0.0);
+        }
+
+        case NODE_BLOCK: {
             return make_number(0.0);
         }
 
@@ -553,6 +709,27 @@ static void execute_statement(ASTNode* node) {
 
         case NODE_SIMULATION_BLOCK: {
             execute_sim(node);
+            break;
+        }
+
+        case NODE_IF: {
+            KValue cond = evaluate(node->left);
+            bool take_then = require_bool(cond, "if condition", node->token.line);
+
+            if (take_then) {
+                execute_statement(node->right);
+            } else if (node->third) {
+                execute_statement(node->third);
+            }
+
+            break;
+        }
+
+        case NODE_BLOCK: {
+            for (int i = 0; i < node->statement_count; i++) {
+                execute_statement(node->statements[i]);
+            }
+
             break;
         }
 

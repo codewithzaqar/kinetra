@@ -66,6 +66,7 @@ static void add_statement(ASTNode* node, ASTNode* stmt) {
 static ASTNode* expression();
 static ASTNode* statement();
 static void parse_block_into(ASTNode* node);
+static ASTNode* parse_block(void);
 
 static ASTNode* primary() {
     Token t = peek();
@@ -75,7 +76,18 @@ static ASTNode* primary() {
         return create_node(NODE_NUMBER_LITERAL, t);
     }
 
+    if(t.type == TOKEN_TRUE || t.type == TOKEN_FALSE) {
+        advance();
+        return create_node(NODE_BOOLEAN_LITERAL, t);
+    }
+
     if (t.type == TOKEN_IDENTIFIER) {
+        advance();
+        return create_node(NODE_VARIABLE, t);
+    }
+
+    // Renderer the built-in dt variable
+    if (t.type == TOKEN_DT) {
         advance();
         return create_node(NODE_VARIABLE, t);
     }
@@ -106,6 +118,7 @@ static ASTNode* primary() {
         return node;
     }
 
+    // Built-in function call: name(arg, arg, ...)
     if (t.type == TOKEN_BUILTIN) {
         Token fn_token = advance();
 
@@ -174,11 +187,6 @@ static ASTNode* primary() {
         return node;
     }
 
-    if (t.type == TOKEN_DT) {
-        advance();
-        return create_node(NODE_VARIABLE, t);
-    }
-
     if (t.type == TOKEN_LPAREN) {
         advance();
 
@@ -199,15 +207,28 @@ static ASTNode* primary() {
     exit(1);
 }
 
+static ASTNode* unary() {
+    if (peek().type == TOKEN_NOT) {
+        Token op = advance();
+
+        ASTNode* node = create_node(NODE_UNARY_OP, op);
+        node->left = unary();
+
+        return node;
+    }
+
+    return primary();
+}
+
 static ASTNode* term() {
-    ASTNode* node = primary();
+    ASTNode* node = unary();
 
     while (peek().type == TOKEN_OP_MUL || peek().type == TOKEN_OP_DIV) {
         Token op = advance();
 
         ASTNode* bin_op = create_node(NODE_BINARY_OP, op);
         bin_op->left = node;
-        bin_op->right = primary();
+        bin_op->right = unary();
 
         node = bin_op;
     }
@@ -215,7 +236,7 @@ static ASTNode* term() {
     return node;
 }
 
-static ASTNode* expression() {
+static ASTNode* additive() {
     ASTNode* node = term();
 
     while (peek().type == TOKEN_OP_ADD || peek().type == TOKEN_OP_SUB) {
@@ -224,6 +245,65 @@ static ASTNode* expression() {
         ASTNode* bin_op = create_node(NODE_BINARY_OP, op);
         bin_op->left = node;
         bin_op->right = term();
+
+        node = bin_op;
+    }
+
+    return node;
+}
+
+static bool is_comparison_token(TokenType type) {
+    return
+        type == TOKEN_LT ||
+        type == TOKEN_GT ||
+        type == TOKEN_LE ||
+        type == TOKEN_GE ||
+        type == TOKEN_EQ ||
+        type == TOKEN_NE;
+}
+
+static ASTNode* comparison() {
+    ASTNode* node = additive();
+
+    while (is_comparison_token(peek().type)) {
+        Token op = advance();
+
+            ASTNode* bin_op = create_node(NODE_BINARY_OP, op);
+            bin_op->left = node;
+            bin_op->right = additive();
+
+            node = bin_op;
+    }
+
+    return node;
+}
+
+static ASTNode* and_expr() {
+    ASTNode* node = comparison();
+
+    while (peek().type == TOKEN_AND) {
+        Token op = advance();
+
+        ASTNode* bin_op = create_node(NODE_BINARY_OP, op);
+        bin_op->left = node;
+        bin_op->right = comparison();
+
+        node = bin_op;
+    }
+
+    return node;
+}
+    
+// Entry point: logical OR
+static ASTNode* expression() {
+    ASTNode* node = and_expr();
+
+    while (peek().type == TOKEN_OR) {
+        Token op = advance();
+
+        ASTNode* bin_op = create_node(NODE_BINARY_OP, op);
+        bin_op->left = node;
+        bin_op->right = and_expr();
 
         node = bin_op;
     }
@@ -246,6 +326,12 @@ static void parse_block_into(ASTNode* node) {
     }
 
     expect(TOKEN_RBRACE, "Expected '}'");
+}
+
+static ASTNode* parse_block(void) {
+    ASTNode* block = create_node(NODE_BLOCK, peek());
+    parse_block_into(block);
+    return block;
 }
 
 static ASTNode* statement() {
@@ -310,8 +396,7 @@ static ASTNode* statement() {
         return node;
     }
 
-    // sim expression {...}
-    // sim {step expression ...}
+    // sim [count] [dt value] {...}
     if (peek().type == TOKEN_SIM) {
         Token sim_token = advance();
 
@@ -334,6 +419,37 @@ static ASTNode* statement() {
         node->right = dt_expr;
 
         parse_block_into(node);
+
+        return node;
+    }
+
+    // if condition {...} else {...}
+    if (peek().type == TOKEN_IF) {
+        Token if_token = advance();
+
+        ASTNode* cond = expression();
+
+        ASTNode* then_block = parse_block();
+
+        ASTNode* else_block = NULL;
+
+        if (peek().type == TOKEN_ELSE) {
+            advance();
+
+            // else if chaining
+            if (peek().type == TOKEN_IF) {
+                ASTNode* nested_if = statement();
+                else_block = create_node(NODE_BLOCK, nested_if->token);
+                add_statement(else_block, nested_if);
+            } else {
+                else_block = parse_block();
+            }
+        }
+
+        ASTNode* node = create_node(NODE_IF, if_token);
+        node->left = cond;
+        node->right = then_block;
+        node->third = else_block;
 
         return node;
     }
@@ -398,7 +514,8 @@ void free_ast(ASTNode* node) {
     if (
         node->type == NODE_PROGRAM || 
         node->type == NODE_SIMULATION_BLOCK ||
-        node->type == NODE_CALL
+        node->type == NODE_CALL ||
+        node->type == NODE_BLOCK
     ) {
         if (node->statements) {
             for (int i = 0; i < node->statement_count; i++) {

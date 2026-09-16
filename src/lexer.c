@@ -108,6 +108,14 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_STEP, id_buf, 0, line);
             } else if (strcmp(id_buf, "dt") == 0) {
                 tokens[count++] = make_token(TOKEN_DT, id_buf, 0, line);
+            } else if (strcmp(id_buf, "if") == 0) {
+                tokens[count++] = make_token(TOKEN_IF, id_buf, 0, line);
+            } else if (strcmp(id_buf, "else") == 0) {
+                tokens[count++] = make_token(TOKEN_ELSE, id_buf, 0, line);
+            } else if (strcmp(id_buf, "true") == 0) {
+                tokens[count++] = make_token(TOKEN_TRUE, id_buf, 0, line);
+            } else if (strcmp(id_buf, "false") == 0) {
+                tokens[count++] = make_token(TOKEN_FALSE, id_buf, 0, line);
             } else if (strcmp(id_buf, "vec3") == 0) {
                 tokens[count++] = make_token(TOKEN_VEC3, id_buf, 0, line);
             } else if (
@@ -154,7 +162,67 @@ Token* lex(const char* source, int* token_count) {
                 break;
 
             case '=':
-                tokens[count++] = make_token(TOKEN_ASSIGN, "=", 0, line);
+                if (i + 1 < len && source[i + 1] == '=') {
+                    tokens[count++] = make_token(TOKEN_EQ, "==", 0, line);
+                    i++;
+                } else {
+                    tokens[count++] = make_token(TOKEN_ASSIGN, "=", 0, line);
+                }
+                break;
+
+            case '!':
+                if (i + 1 < len && source[i + 1] == '=') {
+                    tokens[count++] = make_token(TOKEN_NE, "!=", 0, line);
+                    i++;
+                } else {
+                    tokens[count++] = make_token(TOKEN_NOT, "!", 0, line);
+                }
+                break;
+
+            case '<':
+                if (i + 1 < len && source[i + 1] == '=') {
+                    tokens[count++] = make_token(TOKEN_LE, "<=", 0, line);
+                    i++;
+                } else {
+                    tokens[count++] = make_token(TOKEN_LT, "<", 0, line);
+                }
+                break;
+
+            case '>':
+                if (i + 1 < len && source[i + 1] == '=') {
+                    tokens[count++] = make_token(TOKEN_GE, ">=", 0, line);
+                    i++;
+                } else {
+                    tokens[count++] = make_token(TOKEN_GT, ">", 0, line);
+                }
+                break;
+
+            case '&':
+                if (i + 1 < len && source[i + 1] == '&') {
+                    tokens[count++] = make_token(TOKEN_AND, "&&", 0, line);
+                    i++;
+                } else {
+                    fprintf(
+                        stderr,
+                        "[Lexer Error] Single '&' at line %d; did you mean '&&'?\n",
+                        line
+                    );
+                    tokens[count++] = make_token(TOKEN_ERROR, "?", 0, line);
+                }
+                break;
+
+            case '|':
+                if (i + 1 < len && source[i + 1] == '|') {
+                    tokens[count++] = make_token(TOKEN_OR, "||", 0, line);
+                    i++;
+                } else {
+                    fprintf(
+                        stderr,
+                        "[Lexer Error] Single '|' at line %d; did you mean '||'?\n",
+                        line
+                    );
+                    tokens[count++] = make_token(TOKEN_ERROR, "?", 0, line);
+                }
                 break;
 
             case '(':
