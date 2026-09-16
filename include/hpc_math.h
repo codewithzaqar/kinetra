@@ -18,6 +18,11 @@ Vec3 vec3_add(Vec3 a, Vec3 b);
 Vec3 vec3_scale(Vec3 v, double scalar);
 double vec3_dot(Vec3 a, Vec3 b);
 
+// additions
+Vec3 vec3_cross(Vec3 a, Vec3 b);
+double vec3_length(Vec3 v);
+Vec3 vec3_normalize(Vec3 v);
+
 // Simulation Functions
 // Euler integration step for physics simulations
 Vec3 sim_integrate_euler(Vec3 position, Vec3 velocity, double dt);

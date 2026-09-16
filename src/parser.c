@@ -106,6 +106,61 @@ static ASTNode* primary() {
         return node;
     }
 
+    if (t.type == TOKEN_BUILTIN) {
+        Token fn_token = advance();
+
+        expect(TOKEN_LPAREN, "Expected '(' after built-in function name");
+
+        ASTNode* node = create_node(NODE_CALL, fn_token);
+
+        // Parse argument list
+        if (peek().type != TOKEN_RPAREN) {
+            for (;;) {
+                ASTNode* arg = expression();
+                add_statement(node, arg);
+
+                if (peek().type == TOKEN_COMMA) {
+                    advance();
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        expect(TOKEN_RPAREN, "Expected ')' after built-in function arguments");
+
+        // Parse-time arity checking
+        int arity = node->statement_count;
+        const char* name = fn_token.lexeme;
+
+        if (strcmp(name, "dot") == 0 || strcmp(name, "cross") == 0) {
+            if (arity != 2) {
+                fprintf(
+                    stderr,
+                    "[Parser Error] '%s' expects 2 arguments, got %d at line %d\n",
+                    name,
+                    arity,
+                    fn_token.line
+                );
+                exit(1);
+            }
+        } else if (strcmp(name, "length") == 0 || strcmp(name, "normalize") == 0) {
+            if (arity != 1) {
+                fprintf(
+                    stderr,
+                    "[Parser Error] '%s' expects 1 argument, got %d at line %d\n",
+                    name,
+                    arity,
+                    fn_token.line
+                );
+                exit(1);
+            }
+        }
+
+        return node;
+    }
+
     if (t.type == TOKEN_LPAREN) {
         advance();
 
@@ -317,7 +372,8 @@ void free_ast(ASTNode* node) {
     // Nodes that own statement lists
     if (
         node->type == NODE_PROGRAM || 
-        node->type == NODE_SIMULATION_BLOCK
+        node->type == NODE_SIMULATION_BLOCK ||
+        node->type == NODE_CALL
     ) {
         if (node->statements) {
             for (int i = 0; i < node->statement_count; i++) {

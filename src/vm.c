@@ -114,6 +114,18 @@ static void print_value(KValue value) {
     }
 }
 
+static Vec3 kvalue_to_vec3(KValue value) {
+    Vec3 v;
+    v.x = value.x;
+    v.y = value.y;
+    v.z = value.z;
+    return v;
+}
+
+static KValue vec3_to_kvalue(Vec3 v) {
+    return make_vec3(v.x, v.y, v.z);
+}
+
 static KValue evaluate(ASTNode* node);
 static void execute_statement(ASTNode* node);
 
@@ -260,6 +272,66 @@ static KValue evaluate(ASTNode* node) {
 
             return make_vec3(x.number, y.number, z.number);
         }
+
+        case NODE_CALL: {
+            const char* name = node->token.lexeme;
+
+            if (strcmp(name, "dot") == 0) {
+                KValue a = evaluate(node->statements[0]);
+                KValue b = evaluate(node->statements[1]);
+
+                if (!is_vec3(a) || !is_vec3(b)) {
+                    runtime_error("dot() expects vec3 arguments", node->token.line);
+                }
+
+                return make_number(
+                    vec3_dot(kvalue_to_vec3(a), kvalue_to_vec3(b))
+                );
+            }
+
+            if (strcmp(name, "cross") == 0) {
+                KValue a = evaluate(node->statements[0]);
+                KValue b = evaluate(node->statements[1]);
+
+                if (!is_vec3(a) || !is_vec3(b)) {
+                    runtime_error("cross() expects vec3 arguments", node->token.line);
+                }
+
+                return vec3_to_kvalue(
+                    vec3_cross(kvalue_to_vec3(a), kvalue_to_vec3(b))
+                );
+            }
+
+            if (strcmp(name, "length") == 0) {
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_vec3(a)) {
+                    runtime_error("length() expects a vec3 arguments", node->token.line);
+                }
+
+                return make_number(vec3_length(kvalue_to_vec3(a)));
+            }
+
+            if (strcmp(name, "normalize") == 0) {
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_vec3(a)) {
+                    runtime_error("normalize() expects a vec3 argument", node->token.line);
+                }
+
+                Vec3 v = kvalue_to_vec3(a);
+                double len = vec3_length(v);
+
+                if (len == 0.0) {
+                    runtime_error("normalize() of zero-length vector", node->token.line);
+                }
+
+                return vec3_to_kvalue(vec3_normalize(v));
+            }
+
+            runtime_error("Unknown built-in function", node->token.line);
+            return make_number(0.0);
+        } 
 
         case NODE_BINARY_OP: {
             KValue left = evaluate(node->left);

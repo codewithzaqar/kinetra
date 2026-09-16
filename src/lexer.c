@@ -108,6 +108,13 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_STEP, id_buf, 0, line);
             } else if (strcmp(id_buf, "vec3") == 0) {
                 tokens[count++] = make_token(TOKEN_VEC3, id_buf, 0, line);
+            } else if (
+                strcmp(id_buf, "dot") == 0 ||
+                strcmp(id_buf, "cross") == 0 ||
+                strcmp(id_buf, "length") == 0 ||
+                strcmp(id_buf, "normalize") == 0
+            ) {
+                tokens[count++] = make_token(TOKEN_BUILTIN, id_buf, 0, line);
             } else if (strcmp(id_buf, "mat4") == 0) {
                 tokens[count++] = make_token(TOKEN_MATH_KEYWORD, id_buf, 0, line);
             } else if (strcmp(id_buf, "particle") == 0 || strcmp(id_buf, "integrate") == 0) {
