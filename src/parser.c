@@ -134,7 +134,12 @@ static ASTNode* primary() {
         int arity = node->statement_count;
         const char* name = fn_token.lexeme;
 
-        if (strcmp(name, "dot") == 0 || strcmp(name, "cross") == 0) {
+        if (
+            strcmp(name, "dot") == 0 || 
+            strcmp(name, "cross") == 0 ||
+            strcmp(name, "min") == 0 ||
+            strcmp(name, "max") == 0
+        ) {
             if (arity != 2) {
                 fprintf(
                     stderr,
@@ -145,7 +150,15 @@ static ASTNode* primary() {
                 );
                 exit(1);
             }
-        } else if (strcmp(name, "length") == 0 || strcmp(name, "normalize") == 0) {
+        } else if (
+            strcmp(name, "length") == 0 || 
+            strcmp(name, "normalize") == 0 ||
+            strcmp(name, "sqrt") == 0 ||
+            strcmp(name, "abs") == 0 ||
+            strcmp(name, "sin") == 0 ||
+            strcmp(name, "cos") == 0 ||
+            strcmp(name, "tan") == 0
+        ) {
             if (arity != 1) {
                 fprintf(
                     stderr,
@@ -159,6 +172,11 @@ static ASTNode* primary() {
         }
 
         return node;
+    }
+
+    if (t.type == TOKEN_DT) {
+        advance();
+        return create_node(NODE_VARIABLE, t);
     }
 
     if (t.type == TOKEN_LPAREN) {
@@ -298,15 +316,22 @@ static ASTNode* statement() {
         Token sim_token = advance();
 
         ASTNode* count_expr = NULL;
+        ASTNode* dt_expr = NULL;
 
-        // Optional step-count expression:
-        // sim 3 {...}
-        if (peek().type != TOKEN_LBRACE) {
+        // Optional step count: sim 100 ...
+        if (peek().type != TOKEN_LBRACE && peek().type != TOKEN_DT) {
             count_expr = expression();
+        }
+
+        // Optional custom time step: sim 100 dt 0.016 {...}
+        if (peek().type == TOKEN_DT) {
+            advance(); // consume 'dt'
+            dt_expr = expression();
         }
 
         ASTNode* node = create_node(NODE_SIMULATION_BLOCK, sim_token);
         node->left = count_expr;
+        node->right = dt_expr;
 
         parse_block_into(node);
 

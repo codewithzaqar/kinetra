@@ -1,5 +1,6 @@
 #include "../include/kinetra.h"
 #include "../include/hpc_math.h"
+#include <math.h>
 
 #define MAX_VARIABLES 1024
 
@@ -124,6 +125,16 @@ static Vec3 kvalue_to_vec3(KValue value) {
 
 static KValue vec3_to_kvalue(Vec3 v) {
     return make_vec3(v.x, v.y, v.z);
+}
+
+static double require_number_arg(KValue value, const char* fn, int line) {
+    if (!is_number(value)) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s() expects number arguments", fn);
+        runtime_error(msg, line);
+    }
+
+    return value.number;
 }
 
 static KValue evaluate(ASTNode* node);
@@ -329,6 +340,72 @@ static KValue evaluate(ASTNode* node) {
                 return vec3_to_kvalue(vec3_normalize(v));
             }
 
+            if (strcmp(name, "sqrt") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                if (a < 0.0) {
+                    runtime_error("sqrt() of negative number", node->token.line);
+                }
+
+                return make_number(sqrt(a));
+            }
+
+            if (strcmp(name, "abs") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(fabs(a));
+            }
+
+            if (strcmp(name, "min") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+                double b = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+
+                return make_number(a < b ? a : b);
+            }
+
+            if (strcmp(name, "max") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+                double b = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+
+                return make_number(a > b ? a : b);
+            }
+
+            if (strcmp(name, "sin") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(sin(a));
+            }
+
+            if (strcmp(name, "cos") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(cos(a));
+            }
+
+            if (strcmp(name, "tan") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(tan(a));
+            }
+
             runtime_error("Unknown built-in function", node->token.line);
             return make_number(0.0);
         } 
@@ -414,7 +491,17 @@ static void execute_sim(ASTNode* node) {
 
     double dt_value = 0.0;
 
-    if (steps > 0) {
+    if (node->right) {
+        KValue dt_val = evaluate(node->right);
+
+        if (!is_number(dt_val)) {
+            runtime_error("sim dt value must be a number", node->token.line);
+        }
+
+        dt_value = dt_val.number;
+    }
+
+    else if (steps > 0) {
         dt_value = 1.0 / (double)steps;
     }
 

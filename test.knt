@@ -1,17 +1,23 @@
-// Kinetra v0.0.1a07 test
+// Kinetra v0.0.1a08 test
 
-let a = vec3(1.0, 2.0, 3.0);
-let b = vec3(4.0, 5.0, 6.0);
+print sqrt(16.0);
+print abs(0.0 - 5.0);
+print min(3.0, 7.0);
+print max(3.0, 7.0);
+print sin(0.0);
+print cos(0.0);
 
-print dot(a, b);
-print cross(a, b);
-print length(a);
-print normalize(b);
+let angle = 0.0;
+
+sim 4 dt 0.25 {
+	angle = angle + dt;
+	print cos(angle);
+}
 
 let p = vec3(0.0, 0.0, 0.0);
-let target = vec3(3.0, 4.0, 0.0);
 
 sim 2 {
-	p = p + normalize(target) * dt;
-	print p;
+	p = p + vec3(1.0, 0.0, 0.0) * dt;
 }
+
+print p;

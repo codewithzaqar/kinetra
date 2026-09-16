@@ -106,13 +106,22 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_SIM, id_buf, 0, line);
             } else if (strcmp(id_buf, "step") == 0) {
                 tokens[count++] = make_token(TOKEN_STEP, id_buf, 0, line);
+            } else if (strcmp(id_buf, "dt") == 0) {
+                tokens[count++] = make_token(TOKEN_DT, id_buf, 0, line);
             } else if (strcmp(id_buf, "vec3") == 0) {
                 tokens[count++] = make_token(TOKEN_VEC3, id_buf, 0, line);
             } else if (
                 strcmp(id_buf, "dot") == 0 ||
                 strcmp(id_buf, "cross") == 0 ||
                 strcmp(id_buf, "length") == 0 ||
-                strcmp(id_buf, "normalize") == 0
+                strcmp(id_buf, "normalize") == 0 ||
+                strcmp(id_buf, "sqrt") == 0 ||
+                strcmp(id_buf, "abs") == 0 ||
+                strcmp(id_buf, "min") == 0 ||
+                strcmp(id_buf, "max") == 0 ||
+                strcmp(id_buf, "sin") == 0 ||
+                strcmp(id_buf, "cos") == 0 ||
+                strcmp(id_buf, "tan") == 0
             ) {
                 tokens[count++] = make_token(TOKEN_BUILTIN, id_buf, 0, line);
             } else if (strcmp(id_buf, "mat4") == 0) {

@@ -1,11 +1,14 @@
 # Kinetra Changelog
 
-## [0.0.1a07] - 2026-09-16
+## [0.0.1a08] - 2026-09-16
 
 ### Added
 
+- Added numeric built-ins: `sqrt()`, `abs()`, `min()`, `max()`.
+- Added trig built-ins: `sin()`, `cos()`, `tan()`.
 - Added built-in vector math functions: `dot()`, `cross()`, `length()`, `normalize()`.
 - Added a basic value model supporting numbers and vector values.
+- Added custom simulation time-step syntax: `sim <count> dt <value> {...}`.
 - Added `vec3(x, y, z)` constructor syntax.
 - Added `vec3_cross()` to the HPC math library.
 - Added `vec3_length()` to the HPC math library.
@@ -13,6 +16,7 @@
 - Added `vec3_normalize()` to the HPC math library.
 - Added parse-time arity checking for built-in functions.
 - Added runtime type checking for built-in function arguments.
+- Added `dt` as a readable built-in variable inside expressions.
 - Added `sim` blocks.
 - Added brace block syntax using `{` and `}`.
 - Added `step` statement for declaring simulation iteration count.
@@ -32,6 +36,7 @@
 - Added `TOKEN_VEC3`.
 - Added `TOKEN_COMMA`.
 - Added `TOKEN_BUILTIN`.
+- Added `TOKEN_DT`.
 - Added `NODE_ASSIGN`.
 - Added `NODE_PRINT` AST node.
 - Added `NODE_STEP`.
@@ -56,6 +61,9 @@
 
 ### Changed
 
+- `sim` now stores an optional custom `dt` expression in `node->right`.
+- Automatic `dt = 1 / steps` only applies when no custom `dt` is given.
+- `dt` is now a reserved word and cannot be used as a variable name.
 - Built-in calls now dispatch through the HPC math library.
 - `free_ast()` now frees call arguments lists.
 - `dot`, `cross`, `length`, and `normalize` are now reserved words.
