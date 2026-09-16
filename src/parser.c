@@ -454,6 +454,43 @@ static ASTNode* statement() {
         return node;
     }
 
+    // while condition {...}
+    if (peek().type == TOKEN_WHILE) {
+        Token while_token = advance();
+
+        ASTNode* cond = expression();
+
+        ASTNode* body = parse_block();
+
+        ASTNode* node = create_node(NODE_WHILE, while_token);
+        node->left = cond;
+        node->right = body;
+
+        return node;
+    }
+
+    // break;
+    if (peek().type == TOKEN_BREAK) {
+        Token break_token = advance();
+
+        if (peek().type == TOKEN_SEMICOLON) {
+            advance();
+        }
+
+        return create_node(NODE_BREAK, break_token);
+    }
+
+    // continue;
+    if (peek().type == TOKEN_CONTINUE) {
+        Token continue_token = advance();
+
+        if (peek().type == TOKEN_SEMICOLON) {
+            advance();
+        }
+
+        return create_node(NODE_CONTINUE, continue_token);
+    }
+
     // identifier = expression;
     if (
         peek().type == TOKEN_IDENTIFIER &&

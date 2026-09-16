@@ -10,6 +10,7 @@ typedef enum {
     K_VALUE_BOOL
 } KValueType;
 
+
 typedef struct {
     KValueType type;
 
@@ -27,6 +28,13 @@ typedef struct {
     KValue value;
 } Variable;
 
+typedef enum {
+    K_FLOW_NORMAL,
+    K_FLOW_BREAK,
+    K_FLOW_CONTINUE
+} KFlowSignal;
+
+static KFlowSignal flow_signal = K_FLOW_NORMAL;
 static Variable variables[MAX_VARIABLES];
 static int variable_count = 0;
 
@@ -169,6 +177,7 @@ static double require_number_arg(KValue value, const char* fn, int line) {
 
 static KValue evaluate(ASTNode* node);
 static void execute_statement(ASTNode* node);
+static void execute_while(ASTNode* node);
 
 static KValue apply_binary_op(Token op, KValue left, KValue right) {
     switch (op.type) {
@@ -666,6 +675,8 @@ static void execute_sim(ASTNode* node) {
         set_variable_number("step_index", (double)i);
         set_variable_number("dt", dt_value);
 
+        bool stop_sim = false;
+
         for (int j = 0; j < node->statement_count; j++) {
             ASTNode* stmt = node->statements[j];
 
@@ -676,6 +687,43 @@ static void execute_sim(ASTNode* node) {
             }
 
             execute_statement(stmt);
+
+            if (flow_signal == K_FLOW_BREAK) {
+                flow_signal = K_FLOW_NORMAL;
+                stop_sim = true;
+                break;
+            }
+
+            if (flow_signal == K_FLOW_CONTINUE) {
+                flow_signal = K_FLOW_NORMAL;
+                break;
+            }
+        }
+
+        if (stop_sim) {
+            break;
+        }
+    }
+}
+
+static void execute_while(ASTNode* node) {
+    for (;;) {
+        KValue cond = evaluate(node->left);
+        bool keep = require_bool(cond, "while condition", node->token.line);
+
+        if (!keep) {
+            break;
+        }
+
+        execute_statement(node->right);
+
+        if (flow_signal == K_FLOW_BREAK) {
+            flow_signal = K_FLOW_NORMAL;
+            break;
+        }
+
+        if (flow_signal == K_FLOW_CONTINUE) {
+            flow_signal = K_FLOW_NORMAL;
         }
     }
 }
@@ -728,8 +776,28 @@ static void execute_statement(ASTNode* node) {
         case NODE_BLOCK: {
             for (int i = 0; i < node->statement_count; i++) {
                 execute_statement(node->statements[i]);
+
+                // Propagate break/continue upward without consuming it
+                if (flow_signal != K_FLOW_NORMAL) {
+                    break;
+                }
             }
 
+            break;
+        }
+
+        case NODE_WHILE: {
+            execute_while(node);
+            break;
+        }
+
+        case NODE_BREAK: {
+            flow_signal = K_FLOW_BREAK;
+            break;
+        }
+
+        case NODE_CONTINUE: {
+            flow_signal = K_FLOW_CONTINUE;
             break;
         }
 
@@ -747,5 +815,12 @@ void execute(ASTNode* ast) {
 
     for (int i = 0; i < ast->statement_count; i++) {
         execute_statement(ast->statements[i]);
+
+        if (flow_signal != K_FLOW_NORMAL) {
+            runtime_error(
+                "break/continue outside of loop",
+                ast->statements[i]->token.line
+            );
+        }
     }
 }

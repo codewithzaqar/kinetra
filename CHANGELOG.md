@@ -1,9 +1,12 @@
 # Kinetra Changelog
 
-## [0.0.1a09] - 2026-09-16
+## [0.0.1a10] - 2026-09-16
 
 ### Added
 
+- Added `while condition {...}` loops.
+- Added `break;` statement.
+- Added `continue;` statement.
 - Added boolean literals `true` and `false`.
 - Added boolean value type to the VM.
 - Added comparison operators: `<`, `>`, `<=`, `>=`, `==`, `!=`.
@@ -57,6 +60,9 @@
 - Added `TOKEN_AND`.
 - Added `TOKEN_OR`.
 - Added `TOKEN_NOT`.
+- Added `TOKEN_WHILE`.
+- Added `TOKEN_BREAK`.
+- Added `TOKEN_CONTINUE`.
 - Added `NODE_ASSIGN`.
 - Added `NODE_PRINT` AST node.
 - Added `NODE_STEP`.
@@ -66,6 +72,12 @@
 - Added `NODE_BLOCK`.
 - Added `NODE_UNARY_OP`.
 - Added `NODE_BOOLEAN_LITERAL`.
+- Added `NODE_WHILE`.
+- Added `NODE_BREAK`.
+- Added `NODE_CONTINUE`.
+- Added VM flow-signal mechanism for loop control transfer.
+- Added `break` / `continue` support inside `sim` blocks.
+- Added runtime error for `break` / `continue` outside of any loop.
 - Added vector addition.
 - Added vector subtraction.
 - Added scalar-vector multiplication.
@@ -85,6 +97,9 @@
 
 ### Changed
 
+- `{}` blocks now propagate flow signals to the enclosing loop.
+- `sim` body execution is now flow-signal aware.
+- `while`, `break`, `continue` are now reserved words.
 - Expression parser now uses a full precedence chain:
 	`||` -> `&&` -> comparison -> additive -> term -> unary -> primary.
 - `if`, `else`, `true`, `false` are now reserved words.

@@ -116,6 +116,12 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_TRUE, id_buf, 0, line);
             } else if (strcmp(id_buf, "false") == 0) {
                 tokens[count++] = make_token(TOKEN_FALSE, id_buf, 0, line);
+            } else if (strcmp(id_buf, "while") == 0) {
+                tokens[count++] = make_token(TOKEN_WHILE, id_buf, 0, line);
+            } else if (strcmp(id_buf, "break") == 0) {
+                tokens[count++] = make_token(TOKEN_BREAK, id_buf, 0, line);
+            } else if (strcmp(id_buf, "continue") == 0) {
+                tokens[count++] = make_token(TOKEN_CONTINUE, id_buf, 0, line);
             } else if (strcmp(id_buf, "vec3") == 0) {
                 tokens[count++] = make_token(TOKEN_VEC3, id_buf, 0, line);
             } else if (
