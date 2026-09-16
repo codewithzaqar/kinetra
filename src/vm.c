@@ -2,14 +2,25 @@
 #include "../include/hpc_math.h"
 #include <math.h>
 
+// ============================================================
+// Limits
+// ============================================================
+
 #define MAX_VARIABLES 1024
+#define MAX_FRAMES 64
+#define MAX_FRAME_VARS 64
+#define MAX_FUNCTIONS 256
+#define MAX_CALL_ARGS 64
+
+// ============================================================
+// Value Model
+// ============================================================
 
 typedef enum {
     K_VALUE_NUMBER,
     K_VALUE_VEC3,
     K_VALUE_BOOL
 } KValueType;
-
 
 typedef struct {
     KValueType type;
@@ -23,20 +34,52 @@ typedef struct {
     bool boolean;
 } KValue;
 
+// ============================================================
+// Storage: Globals, Frames, Functions
+// ============================================================
+
 typedef struct {
     char name[256];
     KValue value;
 } Variable;
 
+static Variable variables[MAX_VARIABLES];
+static int variable_count = 0;
+
+typedef struct {
+    char names[MAX_FRAME_VARS][256];
+    KValue values[MAX_FRAME_VARS];
+    int count;
+} Frame;
+
+static Frame frames[MAX_FRAMES];
+static int frame_depth = 0;
+
+typedef struct {
+    char name[256];
+    ASTNode* fn_node;
+} KFunction;
+
+static KFunction functions[MAX_FUNCTIONS];
+static int function_count = 0;
+
+// ============================================================
+// Flow Control Signals
+// ============================================================
+
 typedef enum {
     K_FLOW_NORMAL,
     K_FLOW_BREAK,
-    K_FLOW_CONTINUE
+    K_FLOW_CONTINUE,
+    K_FLOW_RETURN
 } KFlowSignal;
 
 static KFlowSignal flow_signal = K_FLOW_NORMAL;
-static Variable variables[MAX_VARIABLES];
-static int variable_count = 0;
+static KValue return_value;
+
+// ============================================================
+// Errors and Value Constructors
+// ============================================================
 
 static void runtime_error(const char* message, int line) {
     fprintf(
@@ -55,6 +98,7 @@ static KValue make_number(double value) {
     v.x = 0.0;
     v.y = 0.0;
     v.z = 0.0;
+    v.boolean = false;
     return v;
 }
 
@@ -65,6 +109,7 @@ static KValue make_vec3(double x, double y, double z) {
     v.x = x;
     v.y = y;
     v.z = z;
+    v.boolean = false;
     return v;
 }
 
@@ -79,20 +124,6 @@ static KValue make_bool(bool value) {
     return v;
 }
 
-static bool is_bool(KValue value) {
-    return value.type == K_VALUE_BOOL;
-}
-
-static bool require_bool(KValue value, const char* context, int line) {
-    if (!is_bool(value)) {
-        char msg[256];
-        snprintf(msg, sizeof(msg), "%s expects a boolean", context);
-        runtime_error(msg, line);
-    }
-
-    return value.boolean;
-}
-
 static bool is_number(KValue value) {
     return value.type == K_VALUE_NUMBER;
 }
@@ -101,7 +132,25 @@ static bool is_vec3(KValue value) {
     return value.type == K_VALUE_VEC3;
 }
 
+static bool is_bool(KValue value) {
+    return value.type == K_VALUE_BOOL;
+}
+
+// ============================================================
+// Scoped Variable Storage
+// ============================================================
+
 static KValue* find_variable(const char* name) {
+    // Innermost frame first
+    for (int f = frame_depth - 1; f >= 0; f--) {
+        for (int i = 0; i < frames[f].count; i++) {
+            if (strcmp(frames[f].names[i], name) == 0) {
+                return &frames[f].values[i];
+            }
+        }
+    }
+
+    // Then globals
     for (int i = 0; i < variable_count; i++) {
         if (strcmp(variables[i].name, name) == 0) {
             return &variables[i].value;
@@ -111,32 +160,109 @@ static KValue* find_variable(const char* name) {
     return NULL;
 }
 
-static void set_variable(const char* name, KValue value) {
-    KValue* existing = find_variable(name);
+static void define_local(const char* name, KValue value) {
+    Frame* fr = &frames[frame_depth - 1];
 
-    if (existing) {
-        *existing = value;
+    for (int i = 0; i < fr->count; i++) {
+        if (strcmp(fr->names[i], name) == 0) {
+            fr->values[i] = value;
+            return;
+        }
+    }
+
+    if (fr->count >= MAX_FRAME_VARS) {
+        runtime_error("Too many local variables in scope", 0);
+    }
+
+    strncpy(fr->names[fr->count], name, 255);
+    fr->names[fr->count][255] = '\0';
+    fr->values[fr->count] = value;
+    fr->count++;
+}
+
+static void define_in_current_scope(const char* name, KValue value) {
+    if (frame_depth > 0) {
+        define_local(name, value);
         return;
     }
 
+    for (int i = 0; i < variable_count; i++) {
+        if (strcmp(variables[i].name, name) == 0) {
+            variables[i].value = value;
+            return;
+        }
+    }
+
     if (variable_count >= MAX_VARIABLES) {
-        fprintf(
-            stderr,
-            "[VM Error] Variable limit reached\n"
-        );
-        exit(1);
+        runtime_error("Variable limit reached", 0);
     }
 
     strncpy(variables[variable_count].name, name, 255);
     variables[variable_count].name[255] = '\0';
     variables[variable_count].value = value;
-
     variable_count++;
+}
+
+static void set_variable(const char* name, KValue value) {
+    // Nearest enclosing scope that already has the name
+    for (int f = frame_depth - 1; f >= 0; f--) {
+        for (int i = 0; i < frames[f].count; i++) {
+            if (strcmp(frames[f].names[i], name) == 0) {
+                frames[f].values[i] = value;
+                return;
+            }
+        }
+    }
+
+    for (int i = 0; i < variable_count; i++) {
+        if (strcmp(variables[i].name, name) == 0) {
+            variables[i].value = value;
+            return;
+        }
+    }
+
+    define_in_current_scope(name, value);
 }
 
 static void set_variable_number(const char* name, double value) {
     set_variable(name, make_number(value));
 }
+
+// ============================================================
+// Function Table
+// ============================================================
+
+static KFunction* find_function(const char* name) {
+    for (int i = 0; i < function_count; i++) {
+        if (strcmp(functions[i].name, name) == 0) {
+            return &functions[i];
+        }
+    }
+
+    return NULL;
+}
+
+static void define_function(const char* name, ASTNode* node) {
+    KFunction* existing = find_function(name);
+
+    if (existing) {
+        existing->fn_node = node;
+        return;
+    }
+
+    if (function_count >= MAX_FUNCTIONS) {
+        runtime_error("Function limit reached", 0);
+    }
+
+    strncpy(functions[function_count].name, name, 255);
+    functions[function_count].name[255] = '\0';
+    functions[function_count].fn_node = node;
+    function_count++;
+}
+
+// ============================================================
+// Printing and Conversions
+// ============================================================
 
 static void print_value(KValue value) {
     if (is_number(value)) {
@@ -165,6 +291,10 @@ static KValue vec3_to_kvalue(Vec3 v) {
     return make_vec3(v.x, v.y, v.z);
 }
 
+// ============================================================
+// Argument Validation Helpers
+// ============================================================
+
 static double require_number_arg(KValue value, const char* fn, int line) {
     if (!is_number(value)) {
         char msg[256];
@@ -175,9 +305,29 @@ static double require_number_arg(KValue value, const char* fn, int line) {
     return value.number;
 }
 
+static bool require_bool(KValue value, const char* context, int line) {
+    if (!is_bool(value)) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s expects a boolean", context);
+        runtime_error(msg, line);
+    }
+
+    return value.boolean;
+}
+
+// ============================================================
+// Forward Declarations
+// ============================================================
+
 static KValue evaluate(ASTNode* node);
 static void execute_statement(ASTNode* node);
+static void execute_sim(ASTNode* node);
 static void execute_while(ASTNode* node);
+static KValue call_user_function(ASTNode* node);
+
+// ============================================================
+// Binary Operators
+// ============================================================
 
 static KValue apply_binary_op(Token op, KValue left, KValue right) {
     switch (op.type) {
@@ -196,7 +346,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
 
             runtime_error("Invalid operands to '+'", op.line);
             return make_number(0.0);
-        } 
+        }
 
         case TOKEN_OP_SUB: {
             if (is_number(left) && is_number(right)) {
@@ -298,7 +448,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
 
             runtime_error("Invalid operands to '<='", op.line);
             return make_number(0.0);
-        } 
+        }
 
         case TOKEN_GE: {
             if (is_number(left) && is_number(right)) {
@@ -344,7 +494,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
             }
 
             if (is_bool(left) && is_bool(right)) {
-                return make_bool(left.boolean != right.boolean); 
+                return make_bool(left.boolean != right.boolean);
             }
 
             runtime_error("Invalid operands to '!='", op.line);
@@ -352,11 +502,87 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
         }
 
         default: {
-            runtime_error("Unknown operands", op.line);
+            runtime_error("Unknown operator", op.line);
             return make_number(0.0);
         }
     }
 }
+
+// ============================================================
+// User-Defined Function Calls
+// ============================================================
+
+static KValue call_user_function(ASTNode* node) {
+    const char* name = node->token.lexeme;
+
+    KFunction* fn = find_function(name);
+
+    if (!fn) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Unknown function '%s'", name);
+        runtime_error(msg, node->token.line);
+    }
+
+    int argc = node->statement_count;
+    int param_count = fn->fn_node->statement_count;
+
+    if (argc != param_count) {
+        char msg[256];
+        snprintf(
+            msg,
+            sizeof(msg),
+            "'%s' expects %d arguments, got %d",
+            name,
+            param_count,
+            argc
+        );
+        runtime_error(msg, node->token.line);
+    }
+
+    if (argc > MAX_CALL_ARGS) {
+        runtime_error("Too many arguments", node->token.line);
+    }
+
+    KValue arg_values[MAX_CALL_ARGS];
+
+    for (int i = 0; i < argc; i++) {
+        arg_values[i] = evaluate(node->statements[i]);
+    }
+
+    if (frame_depth >= MAX_FRAMES) {
+        runtime_error("Call stack overflow", node->token.line);
+    }
+
+    // Push a new local frame and bind parameters
+    frame_depth++;
+    frames[frame_depth - 1].count = 0;
+
+    for (int i = 0; i < param_count; i++) {
+        define_local(
+            fn->fn_node->statements[i]->token.lexeme,
+            arg_values[i]
+        );
+    }
+
+    execute_statement(fn->fn_node->left);
+
+    KValue result = make_number(0.0);
+
+    if (flow_signal == K_FLOW_RETURN) {
+        result = return_value;
+        flow_signal = K_FLOW_NORMAL;
+    } else if (flow_signal != K_FLOW_NORMAL) {
+        runtime_error("break/continue outside of loop", node->token.line);
+    }
+
+    frame_depth--;
+
+    return result;
+}
+
+// ============================================================
+// Expression Evaluation
+// ============================================================
 
 static KValue evaluate(ASTNode* node) {
     if (!node) return make_number(0.0);
@@ -364,6 +590,10 @@ static KValue evaluate(ASTNode* node) {
     switch (node->type) {
         case NODE_NUMBER_LITERAL: {
             return make_number(node->token.value);
+        }
+
+        case NODE_BOOLEAN_LITERAL: {
+            return make_bool(node->token.type == TOKEN_TRUE);
         }
 
         case NODE_VARIABLE: {
@@ -401,8 +631,58 @@ static KValue evaluate(ASTNode* node) {
             return make_vec3(x.number, y.number, z.number);
         }
 
+        case NODE_BINARY_OP: {
+            // Short-circuit &&
+            if (node->token.type == TOKEN_AND) {
+                KValue left = evaluate(node->left);
+                bool lb = require_bool(left, "'&&'", node->token.line);
+
+                if (!lb) {
+                    return make_bool(false);
+                }
+
+                KValue right = evaluate(node->right);
+                return make_bool(require_bool(right, "'&&'", node->token.line));
+            }
+
+            // Short-circuit ||
+            if (node->token.type == TOKEN_OR) {
+                KValue left = evaluate(node->left);
+                bool lb = require_bool(left, "'||'", node->token.line);
+
+                if (lb) {
+                    return make_bool(true);
+                }
+
+                KValue right = evaluate(node->right);
+                return make_bool(require_bool(right, "'||'", node->token.line));
+            }
+
+            KValue left = evaluate(node->left);
+            KValue right = evaluate(node->right);
+
+            return apply_binary_op(node->token, left, right);
+        }
+
+        case NODE_UNARY_OP: {
+            if (node->token.type == TOKEN_NOT) {
+                KValue operand = evaluate(node->left);
+                return make_bool(!require_bool(operand, "'!'", node->token.line));
+            }
+
+            runtime_error("Unknown unary operator", node->token.line);
+            return make_number(0.0);
+        }
+
         case NODE_CALL: {
             const char* name = node->token.lexeme;
+
+            // User-defined function call
+            if (node->token.type == TOKEN_IDENTIFIER) {
+                return call_user_function(node);
+            }
+
+            // ---- Built-in functions ----
 
             if (strcmp(name, "dot") == 0) {
                 KValue a = evaluate(node->statements[0]);
@@ -434,7 +714,7 @@ static KValue evaluate(ASTNode* node) {
                 KValue a = evaluate(node->statements[0]);
 
                 if (!is_vec3(a)) {
-                    runtime_error("length() expects a vec3 arguments", node->token.line);
+                    runtime_error("length() expects a vec3 argument", node->token.line);
                 }
 
                 return make_number(vec3_length(kvalue_to_vec3(a)));
@@ -525,44 +805,11 @@ static KValue evaluate(ASTNode* node) {
 
             runtime_error("Unknown built-in function", node->token.line);
             return make_number(0.0);
-        } 
-
-        case NODE_BINARY_OP: {
-            // Short-circuit &&
-            if (node->token.type == TOKEN_AND) {
-                KValue left =  evaluate(node->left);
-                bool lb = require_bool(left, "&&", node->token.line);
-
-                if (!lb) {
-                    return make_bool(false);
-                }
-
-                KValue right = evaluate(node->right);
-                return make_bool(require_bool(right, "&&", node->token.line));
-            }
-
-            // Short-circuit ||
-            if (node->token.type == TOKEN_OR) {
-                KValue left = evaluate(node->left);
-                bool lb = require_bool(left, "||", node->token.line);
-
-                if (lb) {
-                    return make_bool(true);
-                }
-
-                KValue right = evaluate(node->right);
-                return make_bool(require_bool(right, "||", node->token.line));
-            }
-
-            KValue left = evaluate(node->left);
-            KValue right = evaluate(node->right);
-
-            return apply_binary_op(node->token, left, right);
         }
 
         case NODE_PRINT: {
             return evaluate(node->left);
-        } 
+        }
 
         case NODE_LET: {
             return evaluate(node->left);
@@ -580,25 +827,19 @@ static KValue evaluate(ASTNode* node) {
             return make_number(0.0);
         }
 
-        case NODE_BOOLEAN_LITERAL: {
-            return make_bool(node->token.type == TOKEN_TRUE);
-        }
-
-        case NODE_UNARY_OP: {
-            if (node->token.type == TOKEN_NOT) {
-                KValue operand = evaluate(node->left);
-                return make_bool(!require_bool(operand, "!", node->token.line));
-            }
-
-            runtime_error("Unknown unary operator", node->token.line);
-            return make_number(0.0);
-        }
-
         case NODE_IF: {
             return make_number(0.0);
         }
 
         case NODE_BLOCK: {
+            return make_number(0.0);
+        }
+
+        case NODE_FUNCTION: {
+            return make_number(0.0);
+        }
+
+        case NODE_RETURN: {
             return make_number(0.0);
         }
 
@@ -608,11 +849,15 @@ static KValue evaluate(ASTNode* node) {
     }
 }
 
+// ============================================================
+// Simulation Loops
+// ============================================================
+
 static void execute_sim(ASTNode* node) {
     double step_count = 0.0;
 
     // Form:
-    // sim expression {...}
+    // sim expression { ... }
     if (node->left) {
         KValue count_value = evaluate(node->left);
 
@@ -627,7 +872,7 @@ static void execute_sim(ASTNode* node) {
     }
 
     // Form:
-    // sim {step expression ...}
+    // sim { step expression; ... }
     else {
         for (int i = 0; i < node->statement_count; i++) {
             ASTNode* stmt = node->statements[i];
@@ -656,6 +901,7 @@ static void execute_sim(ASTNode* node) {
 
     double dt_value = 0.0;
 
+    // Custom dt: sim N dt X { ... }
     if (node->right) {
         KValue dt_val = evaluate(node->right);
 
@@ -666,12 +912,13 @@ static void execute_sim(ASTNode* node) {
         dt_value = dt_val.number;
     }
 
+    // Automatic dt when not specified
     else if (steps > 0) {
         dt_value = 1.0 / (double)steps;
     }
 
     for (long i = 0; i < steps; i++) {
-        // Built-in loop index
+        // Built-in loop variables
         set_variable_number("step_index", (double)i);
         set_variable_number("dt", dt_value);
 
@@ -696,6 +943,11 @@ static void execute_sim(ASTNode* node) {
 
             if (flow_signal == K_FLOW_CONTINUE) {
                 flow_signal = K_FLOW_NORMAL;
+                break;
+            }
+
+            if (flow_signal == K_FLOW_RETURN) {
+                stop_sim = true;
                 break;
             }
         }
@@ -725,8 +977,16 @@ static void execute_while(ASTNode* node) {
         if (flow_signal == K_FLOW_CONTINUE) {
             flow_signal = K_FLOW_NORMAL;
         }
+
+        if (flow_signal == K_FLOW_RETURN) {
+            break;
+        }
     }
 }
+
+// ============================================================
+// Statement Execution
+// ============================================================
 
 static void execute_statement(ASTNode* node) {
     if (!node) return;
@@ -740,7 +1000,7 @@ static void execute_statement(ASTNode* node) {
 
         case NODE_LET: {
             KValue value = evaluate(node->left);
-            set_variable(node->token.lexeme, value);
+            define_in_current_scope(node->token.lexeme, value);
             break;
         }
 
@@ -751,7 +1011,7 @@ static void execute_statement(ASTNode* node) {
         }
 
         case NODE_STEP: {
-            // Step nodes are handles by execute_sim().
+            // Step nodes are handled by execute_sim().
             break;
         }
 
@@ -777,7 +1037,7 @@ static void execute_statement(ASTNode* node) {
             for (int i = 0; i < node->statement_count; i++) {
                 execute_statement(node->statements[i]);
 
-                // Propagate break/continue upward without consuming it
+                // Propagate break/continue/return upward without consuming it
                 if (flow_signal != K_FLOW_NORMAL) {
                     break;
                 }
@@ -801,6 +1061,20 @@ static void execute_statement(ASTNode* node) {
             break;
         }
 
+        case NODE_RETURN: {
+            return_value = node->left
+                ? evaluate(node->left)
+                : make_number(0.0);
+
+            flow_signal = K_FLOW_RETURN;
+            break;
+        }
+
+        case NODE_FUNCTION: {
+            define_function(node->token.lexeme, node);
+            break;
+        }
+
         default: {
             evaluate(node);
             break;
@@ -808,13 +1082,26 @@ static void execute_statement(ASTNode* node) {
     }
 }
 
+// ============================================================
+// Program Entry
+// ============================================================
+
 void execute(ASTNode* ast) {
     if (!ast || ast->type != NODE_PROGRAM) {
         return;
     }
 
+    flow_signal = K_FLOW_NORMAL;
+
     for (int i = 0; i < ast->statement_count; i++) {
         execute_statement(ast->statements[i]);
+
+        if (flow_signal == K_FLOW_RETURN) {
+            runtime_error(
+                "return outside of function",
+                ast->statements[i]->token.line
+            );
+        }
 
         if (flow_signal != K_FLOW_NORMAL) {
             runtime_error(

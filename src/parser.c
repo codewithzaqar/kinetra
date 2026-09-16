@@ -82,6 +82,36 @@ static ASTNode* primary() {
     }
 
     if (t.type == TOKEN_IDENTIFIER) {
+        // User-defined function call: name(args)
+        if (
+            current + 1 < total_tokens &&
+            current_tokens[current + 1].type == TOKEN_LPAREN
+        ) {
+            Token name_token = advance();
+
+            advance(); // consume '('
+
+            ASTNode* node = create_node(NODE_CALL, name_token);
+
+            if (peek().type != TOKEN_RPAREN) {
+                for (;;) {
+                    ASTNode* arg = expression();
+                    add_statement(node, arg);
+
+                    if (peek().type == TOKEN_COMMA) {
+                        advance();
+                        continue;
+                    } 
+
+                    break;
+                }
+            }
+
+            expect(TOKEN_RPAREN, "Expected ')' after function arguments");
+
+            return node;
+        }
+
         advance();
         return create_node(NODE_VARIABLE, t);
     }
@@ -491,6 +521,80 @@ static ASTNode* statement() {
         return create_node(NODE_CONTINUE, continue_token);
     }
 
+    // fn name(params) {...}
+    if (peek().type == TOKEN_FN) {
+        advance(); // consume fn
+
+        if (peek().type != TOKEN_IDENTIFIER) {
+            fprintf(
+                stderr,
+                "[Parser Error] Expected function name after 'fn' at line %d\n",
+                peek().line
+            );
+            exit(1);
+        }
+
+        Token name_token = advance();
+
+        expect(TOKEN_LPAREN, "Expected '(' after function name");
+
+        ASTNode* node = create_node(NODE_FUNCTION, name_token);
+
+        // Parameter list
+        if (peek().type != TOKEN_RPAREN) {
+            for (;;) {
+                if (peek().type != TOKEN_IDENTIFIER) {
+                    fprintf(
+                        stderr,
+                        "[Parser Error] Expected parameter name at line %d\n",
+                        peek().line
+                    );
+                    exit(1);
+                }
+
+                Token param = advance();
+                add_statement(node, create_node(NODE_VARIABLE, param));
+
+                if (peek().type == TOKEN_COMMA) {
+                    advance();
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        expect(TOKEN_RPAREN, "Expected ')' after parameter list");
+
+        node->left = parse_block();
+
+        return node;
+    }
+
+    // return [expression];
+    if (peek().type == TOKEN_RETURN) {
+        Token return_token = advance();
+
+        ASTNode* expr = NULL;
+
+        if (
+            peek().type != TOKEN_SEMICOLON &&
+            peek().type != TOKEN_RBRACE &&
+            peek().type != TOKEN_EOF
+        ) {
+            expr = expression();
+        }
+
+        if (peek().type == TOKEN_SEMICOLON) {
+            advance();
+        }
+
+        ASTNode* node = create_node(NODE_RETURN, return_token);
+        node->left = expr;
+
+        return node;
+    }
+
     // identifier = expression;
     if (
         peek().type == TOKEN_IDENTIFIER &&
@@ -552,7 +656,8 @@ void free_ast(ASTNode* node) {
         node->type == NODE_PROGRAM || 
         node->type == NODE_SIMULATION_BLOCK ||
         node->type == NODE_CALL ||
-        node->type == NODE_BLOCK
+        node->type == NODE_BLOCK ||
+        node->type == NODE_FUNCTION
     ) {
         if (node->statements) {
             for (int i = 0; i < node->statement_count; i++) {

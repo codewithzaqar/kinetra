@@ -1,9 +1,15 @@
 # Kinetra Changelog
 
-## [0.0.1a10] - 2026-09-16
+## [0.0.1a11] - 2026-09-16
 
 ### Added
 
+- Added `fn name(params) {...}` function declarations.
+- Added `return expression;` and bare `return;`.
+- Added user-defined function calls with argument lists.
+- Added a runtime call stack with local frames.
+- Added local scoping and shadowing rules.
+- Added recursion support.
 - Added `while condition {...}` loops.
 - Added `break;` statement.
 - Added `continue;` statement.
@@ -63,6 +69,8 @@
 - Added `TOKEN_WHILE`.
 - Added `TOKEN_BREAK`.
 - Added `TOKEN_CONTINUE`.
+- Added `TOKEN_FN`.
+- Added `TOKEN_RETURN`.
 - Added `NODE_ASSIGN`.
 - Added `NODE_PRINT` AST node.
 - Added `NODE_STEP`.
@@ -75,6 +83,8 @@
 - Added `NODE_WHILE`.
 - Added `NODE_BREAK`.
 - Added `NODE_CONTINUE`.
+- Added `NODE_FUNCTION`.
+- Added `NODE_RETURN`.
 - Added VM flow-signal mechanism for loop control transfer.
 - Added `break` / `continue` support inside `sim` blocks.
 - Added runtime error for `break` / `continue` outside of any loop.
@@ -97,6 +107,10 @@
 
 ### Changed
 
+- Variable lookup is now scope-chain based: innermost frame first, then globals.
+- `let` defines in the current scope; assignment targets the nearest existing scope.
+- `while` and `sim` loops now propagate `return` signals.
+- `fn` and `return` are now reserved words.
 - `{}` blocks now propagate flow signals to the enclosing loop.
 - `sim` body execution is now flow-signal aware.
 - `while`, `break`, `continue` are now reserved words.

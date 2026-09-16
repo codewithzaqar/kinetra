@@ -122,6 +122,10 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_BREAK, id_buf, 0, line);
             } else if (strcmp(id_buf, "continue") == 0) {
                 tokens[count++] = make_token(TOKEN_CONTINUE, id_buf, 0, line);
+            } else if (strcmp(id_buf, "fn") == 0) {
+                tokens[count++] = make_token(TOKEN_FN, id_buf, 0, line);
+            } else if (strcmp(id_buf, "return") == 0) {
+                tokens[count++] = make_token(TOKEN_RETURN, id_buf, 0, line);
             } else if (strcmp(id_buf, "vec3") == 0) {
                 tokens[count++] = make_token(TOKEN_VEC3, id_buf, 0, line);
             } else if (
