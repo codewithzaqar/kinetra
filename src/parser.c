@@ -181,12 +181,28 @@ static ASTNode* primary() {
             strcmp(name, "dot") == 0 || 
             strcmp(name, "cross") == 0 ||
             strcmp(name, "min") == 0 ||
-            strcmp(name, "max") == 0
+            strcmp(name, "max") == 0 ||
+            strcmp(name, "rotate") == 0 ||
+            strcmp(name, "transform") == 0
         ) {
             if (arity != 2) {
                 fprintf(
                     stderr,
                     "[Parser Error] '%s' expects 2 arguments, got %d at line %d\n",
+                    name,
+                    arity,
+                    fn_token.line
+                );
+                exit(1);
+            }
+        } else if (
+            strcmp(name, "translate") == 0 ||
+            strcmp(name, "scale") == 0
+        ) {
+            if (arity != 3) {
+                fprintf(
+                    stderr,
+                    "[Parser Error] '%s' expects 3 arguments, got %d at line %d\n",
                     name,
                     arity,
                     fn_token.line
@@ -212,6 +228,43 @@ static ASTNode* primary() {
                 );
                 exit(1);
             }
+        }
+
+        return node;
+    }
+
+    // mat4() or mat4(m0 .. m15)
+    if (t.type == TOKEN_MAT4) {
+        Token mat_token = advance();
+
+        expect(TOKEN_LPAREN, "Expected '(' after 'mat4'");
+
+        ASTNode* node = create_node(NODE_MAT4, mat_token);
+
+        if (peek().type != TOKEN_RPAREN) {
+            for (;;) {
+                ASTNode* arg = expression();
+                add_statement(node, arg);
+
+                if (peek().type == TOKEN_COMMA) {
+                    advance();
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        expect(TOKEN_RPAREN, "Expected ')' after mat4 constructor");
+
+        if (node->statement_count != 0 && node->statement_count != 16) {
+            fprintf(
+                stderr,
+                "[Parser Error] mat4() expects 0 or 16 arguments, got %d at line %d\n",
+                node->statement_count,
+                mat_token.line
+            );
+            exit(1);
         }
 
         return node;
@@ -657,7 +710,8 @@ void free_ast(ASTNode* node) {
         node->type == NODE_SIMULATION_BLOCK ||
         node->type == NODE_CALL ||
         node->type == NODE_BLOCK ||
-        node->type == NODE_FUNCTION
+        node->type == NODE_FUNCTION ||
+        node->type == NODE_MAT4
     ) {
         if (node->statements) {
             for (int i = 0; i < node->statement_count; i++) {

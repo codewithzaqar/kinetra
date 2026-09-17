@@ -1,6 +1,10 @@
 #include "../include/kinetra.h"
 #include <ctype.h>
 
+// ============================================================
+// Token Constructor
+// ============================================================
+
 static Token make_token(TokenType type, const char* lexeme, double value, int line) {
     Token t;
     t.type = type;
@@ -13,6 +17,10 @@ static Token make_token(TokenType type, const char* lexeme, double value, int li
 
     return t;
 }
+
+// ============================================================
+// Lexer
+// ============================================================
 
 Token* lex(const char* source, int* token_count) {
     Token* tokens = malloc(sizeof(Token) * MAX_TOKENS);
@@ -32,28 +40,31 @@ Token* lex(const char* source, int* token_count) {
         unsigned char c = (unsigned char)source[i];
 
         // Skip standard whitespace AND carriage returns (\r)
-        if (isspace(c)) {
+        if (isspace(c) || c == '\r') {
             if (c == '\n') line++;
             i++;
             continue;
         }
 
-        // Ignore stray ASCII control characters (defensive only)
-        if (c < 0x20 || c == 0x7F) {
-            i++;
-            continue;
-        }
-
-        // Skip UTF-8 BOM (EF BB BF) if present at start of file
-        if (c == 0xEF && i + 2 < len && 
-            (unsigned char)source[i+1] == 0xBB && 
-            (unsigned char)source[i+2] == 0xBF) {
+        // Skip UTF-8 BOM (EF BB BF) if present
+        if (
+            c == 0xEF &&
+            i + 2 < len &&
+            (unsigned char)source[i + 1] == 0xBB &&
+            (unsigned char)source[i + 2] == 0xBF
+        ) {
             i += 3;
             continue;
         }
 
         // Ignore any non-ASCII characters (smart quotes, zero-width spaces, etc.)
         if (c > 127) {
+            i++;
+            continue;
+        }
+
+        // Ignore stray ASCII control characters
+        if (c < 0x20 || c == 0x7F) {
             i++;
             continue;
         }
@@ -98,6 +109,7 @@ Token* lex(const char* source, int* token_count) {
 
             id_buf[j] = '\0';
 
+            // ---- Reserved keywords ----
             if (strcmp(id_buf, "let") == 0) {
                 tokens[count++] = make_token(TOKEN_LET, id_buf, 0, line);
             } else if (strcmp(id_buf, "print") == 0) {
@@ -126,8 +138,14 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_FN, id_buf, 0, line);
             } else if (strcmp(id_buf, "return") == 0) {
                 tokens[count++] = make_token(TOKEN_RETURN, id_buf, 0, line);
+
+            // ---- Type keywords ----
             } else if (strcmp(id_buf, "vec3") == 0) {
                 tokens[count++] = make_token(TOKEN_VEC3, id_buf, 0, line);
+            } else if (strcmp(id_buf, "mat4") == 0) {
+                tokens[count++] = make_token(TOKEN_MAT4, id_buf, 0, line);
+
+            // ---- Built-in functions ----
             } else if (
                 strcmp(id_buf, "dot") == 0 ||
                 strcmp(id_buf, "cross") == 0 ||
@@ -139,13 +157,22 @@ Token* lex(const char* source, int* token_count) {
                 strcmp(id_buf, "max") == 0 ||
                 strcmp(id_buf, "sin") == 0 ||
                 strcmp(id_buf, "cos") == 0 ||
-                strcmp(id_buf, "tan") == 0
+                strcmp(id_buf, "tan") == 0 ||
+                strcmp(id_buf, "translate") == 0 ||
+                strcmp(id_buf, "rotate") == 0 ||
+                strcmp(id_buf, "scale") == 0 ||
+                strcmp(id_buf, "transform") == 0
             ) {
                 tokens[count++] = make_token(TOKEN_BUILTIN, id_buf, 0, line);
-            } else if (strcmp(id_buf, "mat4") == 0) {
-                tokens[count++] = make_token(TOKEN_MATH_KEYWORD, id_buf, 0, line);
-            } else if (strcmp(id_buf, "particle") == 0 || strcmp(id_buf, "integrate") == 0) {
+
+            // ---- Future simulation keywords (reserved) ----
+            } else if (
+                strcmp(id_buf, "particle") == 0 ||
+                strcmp(id_buf, "integrate") == 0
+            ) {
                 tokens[count++] = make_token(TOKEN_SIM_KEYWORD, id_buf, 0, line);
+
+            // ---- Plain identifier ----
             } else {
                 tokens[count++] = make_token(TOKEN_IDENTIFIER, id_buf, 0, line);
             }
@@ -263,11 +290,10 @@ Token* lex(const char* source, int* token_count) {
                 fprintf(
                     stderr,
                     "[Lexer Error] Unexpected character '%c' (0x%02X) at line %d\n",
-                    c, 
-                    c, 
+                    c,
+                    c,
                     line
                 );
-                
                 tokens[count++] = make_token(TOKEN_ERROR, "?", 0, line);
                 break;
         }

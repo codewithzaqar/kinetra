@@ -27,6 +27,14 @@ Vec3 vec3_normalize(Vec3 v);
 // Euler integration step for physics simulations
 Vec3 sim_integrate_euler(Vec3 position, Vec3 velocity, double dt);
 
+// Matrix 4x4 operations
+Mat4 mat4_identity(void);
+Mat4 mat4_translate(double x, double y, double z);
+Mat4 mat4_scale(double x, double y, double z);
+Mat4 mat4_rotate(Vec3 axis, double angle);
+Mat4 mat4_mul(Mat4 a, Mat4 b);
+Vec3 mat4_transform_point(Mat4 m, Vec3 v);
+
 // Initialize HPC subsystem
 void init_hpc_subsystem(void);
 

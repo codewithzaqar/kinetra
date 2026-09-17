@@ -19,7 +19,8 @@
 typedef enum {
     K_VALUE_NUMBER,
     K_VALUE_VEC3,
-    K_VALUE_BOOL
+    K_VALUE_BOOL,
+    K_VALUE_MAT4
 } KValueType;
 
 typedef struct {
@@ -32,6 +33,8 @@ typedef struct {
     double z;
 
     bool boolean;
+
+    double m[16];
 } KValue;
 
 // ============================================================
@@ -110,6 +113,52 @@ static KValue make_vec3(double x, double y, double z) {
     v.y = y;
     v.z = z;
     v.boolean = false;
+    return v;
+}
+
+static KValue make_mat4(const double* m) {
+    KValue v;
+    v.type = K_VALUE_MAT4;
+    v.number = 0.0;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    v.boolean = false;
+
+    for (int i = 0; i < 16; i++) {
+        v.m[i] = m[i];
+    }
+
+    return v;
+}
+
+static bool is_mat4(KValue value) {
+    return value.type == K_VALUE_MAT4;
+}
+
+static Mat4 kvalue_to_mat4(KValue value) {
+    Mat4 m;
+
+    for (int i = 0; i < 16; i++) {
+        m.m[i] = value.m[i];
+    }
+
+    return m;
+}
+
+static KValue mat4_to_kvalue(Mat4 m) {
+    KValue v;
+    v.type = K_VALUE_MAT4;
+    v.number = 0.0;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    v.boolean = false;
+
+    for (int i = 0; i < 16; i++) {
+        v.m[i] = m.m[i];
+    }
+
     return v;
 }
 
@@ -276,6 +325,14 @@ static void print_value(KValue value) {
         );
     } else if (is_bool(value)) {
         printf("[Kinetra] %s\n", value.boolean ? "true" : "false");
+    } else if (is_mat4(value)) {
+        printf("[Kinetra] mat4(");
+
+        for (int i = 0; i < 16; i++) {
+            printf("%g%s", value.m[i], i < 15 ? ", " : "");
+        }
+
+        printf(")\n");
     }
 }
 
@@ -368,6 +425,18 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
         case TOKEN_OP_MUL: {
             if (is_number(left) && is_number(right)) {
                 return make_number(left.number * right.number);
+            }
+
+            if (is_mat4(left) && is_mat4(right)) {
+                return mat4_to_kvalue(
+                    mat4_mul(kvalue_to_mat4(left), kvalue_to_mat4(right))
+                );
+            }
+
+            if (is_mat4(left) && is_vec3(right)) {
+                return vec3_to_kvalue(
+                    mat4_transform_point(kvalue_to_mat4(left), kvalue_to_vec3(right))
+                );
             }
 
             if (is_vec3(left) && is_number(right)) {
@@ -631,6 +700,26 @@ static KValue evaluate(ASTNode* node) {
             return make_vec3(x.number, y.number, z.number);
         }
 
+        case NODE_MAT4: {
+            if (node->statement_count == 0) {
+                return mat4_to_kvalue(mat4_identity());
+            }
+
+            double vals[16];
+
+            for (int i = 0; i < 16; i++) {
+                KValue arg = evaluate(node->statements[i]);
+
+                if (!is_number(arg)) {
+                    runtime_error("mat4 arguments must be numbers", node->token.line);
+                }
+
+                vals[i] = arg.number;
+            }
+
+            return make_mat4(vals);
+        } 
+
         case NODE_BINARY_OP: {
             // Short-circuit &&
             if (node->token.type == TOKEN_AND) {
@@ -802,6 +891,70 @@ static KValue evaluate(ASTNode* node) {
 
                 return make_number(tan(a));
             }
+
+            if (strcmp(name, "translate") == 0) {
+                double x = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+                double y = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+                double z = require_number_arg(
+                    evaluate(node->statements[2]), name, node->token.line
+                );
+
+                return mat4_to_kvalue(mat4_translate(x, y, z));
+            }
+
+            if (strcmp(name, "scale") == 0) {
+                double x = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+                double y = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+                double z = require_number_arg(
+                    evaluate(node->statements[2]), name, node->token.line
+                );
+
+                return mat4_to_kvalue(mat4_scale(x, y, z));
+            }
+
+            if (strcmp(name, "rotate") == 0) {
+                KValue axis = evaluate(node->statements[0]);
+                double angle = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+
+                if (!is_vec3(axis)) {
+                    runtime_error("rotate() expects a vec3 axis", node->token.line);
+                }
+
+                Vec3 k = kvalue_to_vec3(axis);
+
+                if (vec3_length(k) == 0) {
+                    runtime_error("rotate() axis must be non-zero", node->token.line);
+                }
+
+                return mat4_to_kvalue(mat4_rotate(k, angle));
+            }
+
+            if (strcmp(name, "transform") == 0) {
+                KValue m = evaluate(node->statements[0]);
+                KValue v = evaluate(node->statements[1]);
+
+                if (!is_mat4(m)) {
+                    runtime_error("transform() expects a mat4 first argument", node->token.line);
+                }
+
+                if (!is_vec3(v)) {
+                    runtime_error("transform() expects a vec3 second argument", node->token.line);
+                }
+
+                return vec3_to_kvalue(
+                    mat4_transform_point(kvalue_to_mat4(m), kvalue_to_vec3(v))
+                );
+            } 
 
             runtime_error("Unknown built-in function", node->token.line);
             return make_number(0.0);

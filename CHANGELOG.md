@@ -1,9 +1,18 @@
 # Kinetra Changelog
 
-## [0.0.1a11] - 2026-09-16
+## [0.0.1a12] - 2026-09-17
 
 ### Added
 
+- Added `mat4` value type (row-major 4x4).
+- Added `mat4()` identity constructor.
+- Added `mat4(m()..m15)` explicit constructor.
+- Added `mat4 * mat4` matrix multiplication.
+- Added `mat4 * vec3` point-transformation sugar.
+- Added `translate(x, y, z)` built-in.
+- Added `scale(x, y, z)` built-in.
+- Added `rotate(axis, angle)` built-in using Rodrigues rotation.
+- Added `transform(mat4, vec3)` built-in with homogeneous divide.
 - Added `fn name(params) {...}` function declarations.
 - Added `return expression;` and bare `return;`.
 - Added user-defined function calls with argument lists.
@@ -71,6 +80,7 @@
 - Added `TOKEN_CONTINUE`.
 - Added `TOKEN_FN`.
 - Added `TOKEN_RETURN`.
+- Added `TOKEN_MAT4`.
 - Added `NODE_ASSIGN`.
 - Added `NODE_PRINT` AST node.
 - Added `NODE_STEP`.
@@ -85,6 +95,8 @@
 - Added `NODE_CONTINUE`.
 - Added `NODE_FUNCTION`.
 - Added `NODE_RETURN`.
+- Added `NODE_MAT4`.
+- Added HPC library functions: `mat4_identity`, `mat4_translate`. `mat4_scale`, `mat4_rotate`, `mat4_mul`, `mat4_mul`, `mat4_transform_point`.
 - Added VM flow-signal mechanism for loop control transfer.
 - Added `break` / `continue` support inside `sim` blocks.
 - Added runtime error for `break` / `continue` outside of any loop.
@@ -107,6 +119,7 @@
 
 ### Changed
 
+- `mat4` is now a reserved word with its own token type.
 - Variable lookup is now scope-chain based: innermost frame first, then globals.
 - `let` defines in the current scope; assignment targets the nearest existing scope.
 - `while` and `sim` loops now propagate `return` signals.

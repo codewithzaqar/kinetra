@@ -1,58 +1,18 @@
-// Kinetra v0.0.1a11 test
+// Kinetra v0.0.1a12 test
 
-fn square(x) {
-	return x * x;
-}
+let ident = mat4();
+print transform(ident, vec3(1.0, 2.0, 3.0));
 
-fn add(a, b) {
-	return a + b;
-}
+let t = translate(10.0, 0.0, 0.0);
+print transform(t, vec3(1.0, 2.0, 3.0));
 
-fn sum_to(n) {
-	let total = 0.0;
-	let i = 0.0;
+let s = scale(2.0, 2.0, 2.0);
+print transform(s, vec3(1.0, 2.0, 3.0));
 
-	while i < n {
-		i = i + 1.0;
-		total = total + i;
-	}
+let r = rotate(vec3(0.0, 0.0, 1.0), 1.5707963267948966);
+print transform(r, vec3(1.0, 0.0, 0.0));
 
-	return total;
-}
+let m = t * s;
+print transform(m, vec3(1.0, 1.0, 1.0));
 
-fn hypotenuse(a, b) {
-	return sqrt(add(square(a), square(b)));
-}
-
-fn fib(n) {
-	if n < 2.0 {
-		return n;
-	}
-
-	return fib(n - 1.0) + fib(n - 2.0);
-}
-
-fn classify(x) {
-	if x < 0.0 {
-		return 0.0 - 1.0;
-	}
-
-	return 1.0;
-}
-
-let scale = 2.0;
-
-fn scaled(v) {
-	let scale = 3.0;
-	return v * scale;
-}
-
-print square(4.0);
-print add(2.0, 3.0);
-print sum_to(10.0);
-print hypotenuse(3.0, 4.0);
-print fib(10.0);
-print classify(0.0 - 7.0);
-print classify(7.0);
-print scaled(5.0);
-print scale;
+print mat4(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
