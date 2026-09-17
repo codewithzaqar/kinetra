@@ -158,6 +158,7 @@ Token* lex(const char* source, int* token_count) {
                 strcmp(id_buf, "sin") == 0 ||
                 strcmp(id_buf, "cos") == 0 ||
                 strcmp(id_buf, "tan") == 0 ||
+                strcmp(id_buf, "len") == 0 ||
                 strcmp(id_buf, "translate") == 0 ||
                 strcmp(id_buf, "rotate") == 0 ||
                 strcmp(id_buf, "scale") == 0 ||
@@ -284,6 +285,14 @@ Token* lex(const char* source, int* token_count) {
 
             case ',':
                 tokens[count++] = make_token(TOKEN_COMMA, ",", 0, line);
+                break;
+
+            case '[':
+                tokens[count++] = make_token(TOKEN_LBRACKET, "[", 0, line);
+                break;
+
+            case ']':
+                tokens[count++] = make_token(TOKEN_RBRACKET, "]", 0, line);
                 break;
 
             default:

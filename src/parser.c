@@ -270,6 +270,31 @@ static ASTNode* primary() {
         return node;
     }
 
+    // [elem, elem, ...]
+    if (t.type == TOKEN_LBRACKET) {
+        Token bracket = advance();
+
+        ASTNode* node = create_node(NODE_ARRAY_LITERAL, bracket);
+
+        if (peek().type != TOKEN_RBRACKET) {
+            for (;;) {
+                ASTNode* elem = expression();
+                add_statement(node, elem);
+
+                if (peek().type == TOKEN_COMMA) {
+                    advance();
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        expect(TOKEN_RBRACKET, "Expected ']' after array literal");
+
+        return node;
+    }
+
     if (t.type == TOKEN_LPAREN) {
         advance();
 
@@ -300,7 +325,24 @@ static ASTNode* unary() {
         return node;
     }
 
-    return primary();
+    ASTNode* node = primary();
+
+    // Postfix index chains: a[i], m[1][0] f()[2]
+    while (peek().type == TOKEN_LBRACKET) {
+        Token bracket = advance();
+
+        ASTNode* idx = expression();
+
+        expect(TOKEN_RBRACKET, "Expected ']' after index");
+
+        ASTNode* index_node = create_node(NODE_INDEX, bracket);
+        index_node->left = node;
+        index_node->right = idx;
+
+        node = index_node;
+    }
+
+    return node;
 }
 
 static ASTNode* term() {
@@ -649,12 +691,38 @@ static ASTNode* statement() {
     }
 
     // identifier = expression;
+    // identifier[index] = expression;
     if (
         peek().type == TOKEN_IDENTIFIER &&
         current + 1 < total_tokens &&
-        current_tokens[current + 1].type == TOKEN_ASSIGN
+        (
+            current_tokens[current + 1].type == TOKEN_ASSIGN ||
+            current_tokens[current + 1].type == TOKEN_LBRACKET
+        )
     ) {
         Token id = advance();
+
+        // Indexed assignment: name[i] = value;
+        if (peek().type == TOKEN_LBRACKET) {
+            advance(); // consume '['
+
+            ASTNode* idx = expression();
+
+            expect(TOKEN_RBRACKET, "Expected ']' after index");
+            expect(TOKEN_ASSIGN, "Expected '=' after indexed target");
+
+            ASTNode* value = expression();
+
+            if (peek().type == TOKEN_SEMICOLON) {
+                advance();
+            }
+
+            ASTNode* node = create_node(NODE_INDEX_ASSIGN, id);
+            node->left = idx;
+            node->right = value;
+
+            return node;
+        } 
 
         advance(); // consume '='
 
@@ -711,7 +779,8 @@ void free_ast(ASTNode* node) {
         node->type == NODE_CALL ||
         node->type == NODE_BLOCK ||
         node->type == NODE_FUNCTION ||
-        node->type == NODE_MAT4
+        node->type == NODE_MAT4 ||
+        node->type == NODE_ARRAY_LITERAL
     ) {
         if (node->statements) {
             for (int i = 0; i < node->statement_count; i++) {

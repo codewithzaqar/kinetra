@@ -1,9 +1,17 @@
 # Kinetra Changelog
 
-## [0.0.1a12] - 2026-09-17
+## [0.0.1a13] - 2026-09-17
 
 ### Added
 
+- Added array value type with reference semantics.
+- Added array literals: `[...]` and empty `[]`.
+- Added nested array support.
+- Added index read syntax: `a[i]`, including chained indexing.
+- Added index write syntax: `a[i] = value;`.
+- Added `len()` built-in.
+- Added bounds-checked, whole-numer index validation.
+- Added recursive value printing for arrays.
 - Added `mat4` value type (row-major 4x4).
 - Added `mat4()` identity constructor.
 - Added `mat4(m()..m15)` explicit constructor.
@@ -81,6 +89,8 @@
 - Added `TOKEN_FN`.
 - Added `TOKEN_RETURN`.
 - Added `TOKEN_MAT4`.
+- Added `TOKEN_LBRACKET`.
+- Added `TOKEN_RBRACKET`.
 - Added `NODE_ASSIGN`.
 - Added `NODE_PRINT` AST node.
 - Added `NODE_STEP`.
@@ -96,6 +106,9 @@
 - Added `NODE_FUNCTION`.
 - Added `NODE_RETURN`.
 - Added `NODE_MAT4`.
+- Added `NODE_ARRAY_LITERAL`.
+- Added `NODE_INDEX`.
+- Added `NODE_INDEX_ASSIGN`.
 - Added HPC library functions: `mat4_identity`, `mat4_translate`. `mat4_scale`, `mat4_rotate`, `mat4_mul`, `mat4_mul`, `mat4_transform_point`.
 - Added VM flow-signal mechanism for loop control transfer.
 - Added `break` / `continue` support inside `sim` blocks.
@@ -119,6 +132,8 @@
 
 ### Changed
 
+- `KValue` is now self-referential tagged struct with array storage.
+- `print_value()` now delegates to a recursive inner printer.
 - `mat4` is now a reserved word with its own token type.
 - Variable lookup is now scope-chain based: innermost frame first, then globals.
 - `let` defines in the current scope; assignment targets the nearest existing scope.
@@ -143,3 +158,8 @@
 - Parser now parses a statement instead of only a raw expression.
 - VM now executes `print` statements directly.
 - Improved repository structure and release hygiene.
+
+### Known Limitations
+
+- Arrays are shared by reference; there is no copy operator yet.
+- No garbage collection; array memory lives until process exit.

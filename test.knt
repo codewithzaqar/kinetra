@@ -1,18 +1,26 @@
-// Kinetra v0.0.1a12 test
+// Kinetra v0.0.1a13 test
 
-let ident = mat4();
-print transform(ident, vec3(1.0, 2.0, 3.0));
+let a = [1.0, 2.0, 3.0, 4.0];
 
-let t = translate(10.0, 0.0, 0.0);
-print transform(t, vec3(1.0, 2.0, 3.0));
+print len(a);
+print a[0];
+print a[3];
 
-let s = scale(2.0, 2.0, 2.0);
-print transform(s, vec3(1.0, 2.0, 3.0));
+a[1] = 20.0;
+print a;
 
-let r = rotate(vec3(0.0, 0.0, 1.0), 1.5707963267948966);
-print transform(r, vec3(1.0, 0.0, 0.0));
+let total = 0.0;
+let i = 0.0;
 
-let m = t * s;
-print transform(m, vec3(1.0, 1.0, 1.0));
+while i < len(a) {
+	total = total + a[i];
+	i = i + 1.0;
+}
 
-print mat4(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+print total;
+
+let empty = [];
+print len(empty);
+
+let matrix = [[1.0, 2.0], [3.0, 4.0]];
+print matrix[1][0];

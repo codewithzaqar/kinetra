@@ -20,10 +20,13 @@ typedef enum {
     K_VALUE_NUMBER,
     K_VALUE_VEC3,
     K_VALUE_BOOL,
-    K_VALUE_MAT4
+    K_VALUE_MAT4,
+    K_VALUE_ARRAY
 } KValueType;
 
-typedef struct {
+typedef struct KValue KValue;
+
+struct KValue {
     KValueType type;
 
     double number;
@@ -35,7 +38,11 @@ typedef struct {
     bool boolean;
 
     double m[16];
-} KValue;
+
+    // Array storage (reference semantics)
+    KValue* elements;
+    int element_count;
+};
 
 // ============================================================
 // Storage: Globals, Frames, Functions
@@ -81,7 +88,7 @@ static KFlowSignal flow_signal = K_FLOW_NORMAL;
 static KValue return_value;
 
 // ============================================================
-// Errors and Value Constructors
+// Errors
 // ============================================================
 
 static void runtime_error(const char* message, int line) {
@@ -94,6 +101,10 @@ static void runtime_error(const char* message, int line) {
     exit(1);
 }
 
+// ============================================================
+// Value Constructors and Type Checks
+// ============================================================
+
 static KValue make_number(double value) {
     KValue v;
     v.type = K_VALUE_NUMBER;
@@ -102,6 +113,12 @@ static KValue make_number(double value) {
     v.y = 0.0;
     v.z = 0.0;
     v.boolean = false;
+
+    for (int i = 0; i < 16; i++) v.m[i] = 0.0;
+
+    v.elements = NULL;
+    v.element_count = 0;
+
     return v;
 }
 
@@ -113,51 +130,11 @@ static KValue make_vec3(double x, double y, double z) {
     v.y = y;
     v.z = z;
     v.boolean = false;
-    return v;
-}
 
-static KValue make_mat4(const double* m) {
-    KValue v;
-    v.type = K_VALUE_MAT4;
-    v.number = 0.0;
-    v.x = 0.0;
-    v.y = 0.0;
-    v.z = 0.0;
-    v.boolean = false;
+    for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
-    for (int i = 0; i < 16; i++) {
-        v.m[i] = m[i];
-    }
-
-    return v;
-}
-
-static bool is_mat4(KValue value) {
-    return value.type == K_VALUE_MAT4;
-}
-
-static Mat4 kvalue_to_mat4(KValue value) {
-    Mat4 m;
-
-    for (int i = 0; i < 16; i++) {
-        m.m[i] = value.m[i];
-    }
-
-    return m;
-}
-
-static KValue mat4_to_kvalue(Mat4 m) {
-    KValue v;
-    v.type = K_VALUE_MAT4;
-    v.number = 0.0;
-    v.x = 0.0;
-    v.y = 0.0;
-    v.z = 0.0;
-    v.boolean = false;
-
-    for (int i = 0; i < 16; i++) {
-        v.m[i] = m.m[i];
-    }
+    v.elements = NULL;
+    v.element_count = 0;
 
     return v;
 }
@@ -170,6 +147,50 @@ static KValue make_bool(bool value) {
     v.y = 0.0;
     v.z = 0.0;
     v.boolean = value;
+
+    for (int i = 0; i < 16; i++) v.m[i] = 0.0;
+
+    v.elements = NULL;
+    v.element_count = 0;
+
+    return v;
+}
+
+static KValue make_mat4(const double* m) {
+    KValue v;
+    v.type = K_VALUE_MAT4;
+    v.number = 0.0;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    v.boolean = false;
+
+    for (int i = 0; i < 16; i++) v.m[i] = m[i];
+
+    v.elements = NULL;
+    v.element_count = 0;
+
+    return v;
+}
+
+static KValue make_array(int count) {
+    KValue v;
+    v.type = K_VALUE_ARRAY;
+    v.number = 0.0;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    v.boolean = false;
+
+    for (int i = 0; i < 16; i++) v.m[i] = 0.0;
+
+    v.element_count = count;
+    v.elements = count > 0 ? malloc(sizeof(KValue) * (size_t)count) : NULL;
+
+    if (count > 0 && !v.elements) {
+        runtime_error("Out of memory allocating array", 0);
+    }
+
     return v;
 }
 
@@ -183,6 +204,14 @@ static bool is_vec3(KValue value) {
 
 static bool is_bool(KValue value) {
     return value.type == K_VALUE_BOOL;
+}
+
+static bool is_mat4(KValue value) {
+    return value.type == K_VALUE_MAT4;
+}
+
+static bool is_array(KValue value) {
+    return value.type == K_VALUE_ARRAY;
 }
 
 // ============================================================
@@ -310,31 +339,48 @@ static void define_function(const char* name, ASTNode* node) {
 }
 
 // ============================================================
-// Printing and Conversions
+// Printing (recursive for nested values)
 // ============================================================
 
-static void print_value(KValue value) {
+static void print_value_inner(KValue value) {
     if (is_number(value)) {
-        printf("[Kinetra] %g\n", value.number);
+        printf("%g", value.number);
     } else if (is_vec3(value)) {
-        printf(
-            "[Kinetra] vec3(%g, %g, %g)\n",
-            value.x,
-            value.y,
-            value.z
-        );
+        printf("vec3(%g, %g, %g)", value.x, value.y, value.z);
     } else if (is_bool(value)) {
-        printf("[Kinetra] %s\n", value.boolean ? "true" : "false");
+        printf("%s", value.boolean ? "true" : "false");
     } else if (is_mat4(value)) {
-        printf("[Kinetra] mat4(");
+        printf("mat4(");
 
         for (int i = 0; i < 16; i++) {
             printf("%g%s", value.m[i], i < 15 ? ", " : "");
         }
 
-        printf(")\n");
+        printf(")");
+    } else if (is_array(value)) {
+        printf("[");
+
+        for (int i = 0; i < value.element_count; i++) {
+            print_value_inner(value.elements[i]);
+
+            if (i + 1 < value.element_count) {
+                printf(", ");
+            }
+        }
+
+        printf("]");
     }
 }
+
+static void print_value(KValue value) {
+    printf("[Kinetra] ");
+    print_value_inner(value);
+    printf("\n");
+}
+
+// ============================================================
+// Conversions between KValue and HPC types
+// ============================================================
 
 static Vec3 kvalue_to_vec3(KValue value) {
     Vec3 v;
@@ -346,6 +392,35 @@ static Vec3 kvalue_to_vec3(KValue value) {
 
 static KValue vec3_to_kvalue(Vec3 v) {
     return make_vec3(v.x, v.y, v.z);
+}
+
+static Mat4 kvalue_to_mat4(KValue value) {
+    Mat4 m;
+
+    for (int i = 0; i < 16; i++) {
+        m.m[i] = value.m[i];
+    }
+
+    return m;
+}
+
+static KValue mat4_to_kvalue(Mat4 m) {
+    KValue v;
+    v.type = K_VALUE_MAT4;
+    v.number = 0.0;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    v.boolean = false;
+
+    for (int i = 0; i < 16; i++) {
+        v.m[i] = m.m[i];
+    }
+
+    v.elements = NULL;
+    v.element_count = 0;
+
+    return v;
 }
 
 // ============================================================
@@ -370,6 +445,26 @@ static bool require_bool(KValue value, const char* context, int line) {
     }
 
     return value.boolean;
+}
+
+static int require_index(KValue value, int count, int line) {
+    if (!is_number(value)) {
+        runtime_error("Array index must be a number", line);
+    }
+
+    double d = value.number;
+
+    if (d != floor(d)) {
+        runtime_error("Array index must be a whole number", line);
+    }
+
+    long idx = (long)d;
+
+    if (idx < 0 || idx >= (long)count) {
+        runtime_error("Array index out of bounds", line);
+    }
+
+    return (int)idx;
 }
 
 // ============================================================
@@ -427,18 +522,6 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_number(left.number * right.number);
             }
 
-            if (is_mat4(left) && is_mat4(right)) {
-                return mat4_to_kvalue(
-                    mat4_mul(kvalue_to_mat4(left), kvalue_to_mat4(right))
-                );
-            }
-
-            if (is_mat4(left) && is_vec3(right)) {
-                return vec3_to_kvalue(
-                    mat4_transform_point(kvalue_to_mat4(left), kvalue_to_vec3(right))
-                );
-            }
-
             if (is_vec3(left) && is_number(right)) {
                 return make_vec3(
                     left.x * right.number,
@@ -460,6 +543,18 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                     left.x * right.x,
                     left.y * right.y,
                     left.z * right.z
+                );
+            }
+
+            if (is_mat4(left) && is_mat4(right)) {
+                return mat4_to_kvalue(
+                    mat4_mul(kvalue_to_mat4(left), kvalue_to_mat4(right))
+                );
+            }
+
+            if (is_mat4(left) && is_vec3(right)) {
+                return vec3_to_kvalue(
+                    mat4_transform_point(kvalue_to_mat4(left), kvalue_to_vec3(right))
                 );
             }
 
@@ -718,7 +813,33 @@ static KValue evaluate(ASTNode* node) {
             }
 
             return make_mat4(vals);
-        } 
+        }
+
+        case NODE_ARRAY_LITERAL: {
+            int count = node->statement_count;
+
+            KValue arr = make_array(count);
+
+            for (int i = 0; i < count; i++) {
+                arr.elements[i] = evaluate(node->statements[i]);
+            }
+
+            return arr;
+        }
+
+        case NODE_INDEX: {
+            KValue base = evaluate(node->left);
+
+            if (!is_array(base)) {
+                runtime_error("Index operator expects an array", node->token.line);
+            }
+
+            KValue idx = evaluate(node->right);
+
+            int i = require_index(idx, base.element_count, node->token.line);
+
+            return base.elements[i];
+        }
 
         case NODE_BINARY_OP: {
             // Short-circuit &&
@@ -932,7 +1053,7 @@ static KValue evaluate(ASTNode* node) {
 
                 Vec3 k = kvalue_to_vec3(axis);
 
-                if (vec3_length(k) == 0) {
+                if (vec3_length(k) == 0.0) {
                     runtime_error("rotate() axis must be non-zero", node->token.line);
                 }
 
@@ -954,7 +1075,17 @@ static KValue evaluate(ASTNode* node) {
                 return vec3_to_kvalue(
                     mat4_transform_point(kvalue_to_mat4(m), kvalue_to_vec3(v))
                 );
-            } 
+            }
+
+            if (strcmp(name, "len") == 0) {
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_array(a)) {
+                    runtime_error("len() expects an array argument", node->token.line);
+                }
+
+                return make_number((double)a.element_count);
+            }
 
             runtime_error("Unknown built-in function", node->token.line);
             return make_number(0.0);
@@ -993,6 +1124,10 @@ static KValue evaluate(ASTNode* node) {
         }
 
         case NODE_RETURN: {
+            return make_number(0.0);
+        }
+
+        case NODE_INDEX_ASSIGN: {
             return make_number(0.0);
         }
 
@@ -1160,6 +1295,25 @@ static void execute_statement(ASTNode* node) {
         case NODE_ASSIGN: {
             KValue value = evaluate(node->left);
             set_variable(node->token.lexeme, value);
+            break;
+        }
+
+        case NODE_INDEX_ASSIGN: {
+            KValue* base = find_variable(node->token.lexeme);
+
+            if (!base) {
+                runtime_error("Undefined variable", node->token.line);
+            }
+
+            if (!is_array(*base)) {
+                runtime_error("Index assignment expects an array", node->token.line);
+            }
+
+            KValue idx = evaluate(node->left);
+
+            int i = require_index(idx, base->element_count, node->token.line);
+
+            base->elements[i] = evaluate(node->right);
             break;
         }
 
