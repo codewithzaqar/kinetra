@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define KINETRA_VERSION "0.0.1a13"
+#define KINETRA_VERSION "0.0.1a14"
 #define MAX_TOKENS 4096
 #define MAX_AST_NODES 2048
 
@@ -45,6 +45,8 @@ typedef enum {
 
 	TOKEN_VEC3,
 	TOKEN_MAT4,
+	TOKEN_PARTICLE,
+	TOKEN_DOT,
 	TOKEN_BUILTIN,
 
 	TOKEN_SIM_KEYWORD,
@@ -94,6 +96,8 @@ typedef enum {
 	NODE_ARRAY_LITERAL,
 	NODE_INDEX,
 	NODE_INDEX_ASSIGN,
+	NODE_PARTICLE,
+	NODE_MEMBER,
 	NODE_CALL,
 	NODE_IF,
 	NODE_BLOCK,

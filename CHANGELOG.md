@@ -1,9 +1,16 @@
 # Kinetra Changelog
 
-## [0.0.1a13] - 2026-09-17
+## [0.0.1a14] - 2026-09-18
 
 ### Added
 
+- Added `particle` value type (positon, velocity, force, mass).
+- Added `particle(pos, vel)` and `particle(pos, vel, mass)` constructors.
+- Added member access operator `.` for vec3 (`.x .y .z`) and particles
+ (`.position .velocity .force .mass`).
+- Added `apply_force(p, f)` built-in.
+- Added `clear_force(p)` built-in.
+- Added `integrate(p, dt)` built-in using semi-implicit Euler integration.
 - Added array value type with reference semantics.
 - Added array literals: `[...]` and empty `[]`.
 - Added nested array support.
@@ -91,6 +98,8 @@
 - Added `TOKEN_MAT4`.
 - Added `TOKEN_LBRACKET`.
 - Added `TOKEN_RBRACKET`.
+- Added `TOKEN_PARTICLE`.
+- Added `TOKEN_DOT`.
 - Added `NODE_ASSIGN`.
 - Added `NODE_PRINT` AST node.
 - Added `NODE_STEP`.
@@ -109,6 +118,8 @@
 - Added `NODE_ARRAY_LITERAL`.
 - Added `NODE_INDEX`.
 - Added `NODE_INDEX_ASSIGN`.
+- Added `NODE_PARTICLE`.
+- Added `NODE_MEMBER`.
 - Added HPC library functions: `mat4_identity`, `mat4_translate`. `mat4_scale`, `mat4_rotate`, `mat4_mul`, `mat4_mul`, `mat4_transform_point`.
 - Added VM flow-signal mechanism for loop control transfer.
 - Added `break` / `continue` support inside `sim` blocks.
@@ -132,6 +143,7 @@
 
 ### Changed
 
+- `integrate` is no longer a reserved sim keyword; it is now a built-in function.
 - `KValue` is now self-referential tagged struct with array storage.
 - `print_value()` now delegates to a recursive inner printer.
 - `mat4` is now a reserved word with its own token type.
@@ -161,5 +173,6 @@
 
 ### Known Limitations
 
+- Member assignment (`p.position = ...`) is not supported yet.
 - Arrays are shared by reference; there is no copy operator yet.
 - No garbage collection; array memory lives until process exit.

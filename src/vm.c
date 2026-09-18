@@ -21,7 +21,8 @@ typedef enum {
     K_VALUE_VEC3,
     K_VALUE_BOOL,
     K_VALUE_MAT4,
-    K_VALUE_ARRAY
+    K_VALUE_ARRAY,
+    K_VALUE_PARTICLE
 } KValueType;
 
 typedef struct KValue KValue;
@@ -38,6 +39,21 @@ struct KValue {
     bool boolean;
 
     double m[16];
+
+    // Particle storage
+    double px;
+    double py;
+    double pz;
+
+    double vx;
+    double vy;
+    double vz;
+
+    double fx;
+    double fy;
+    double fz;
+
+    double mass;
 
     // Array storage (reference semantics)
     KValue* elements;
@@ -114,12 +130,43 @@ static KValue make_number(double value) {
     v.z = 0.0;
     v.boolean = false;
 
+    v.px = 0.0; v.py = 0.0; v.pz = 0.0;
+    v.vx = 0.0; v.vy = 0.0; v.vz = 0.0;
+    v.fx = 0.0; v.fy = 0.0; v.fz = 0.0;
+    v.mass = 0.0;
+
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
     v.elements = NULL;
     v.element_count = 0;
 
     return v;
+}
+
+static KValue make_particle(Vec3 pos, Vec3 vel, double mass) {
+    KValue v;
+    v.type = K_VALUE_PARTICLE;
+    v.number = 0.0;
+    v.x = 0.0;
+    v.y = 0.0;
+    v.z = 0.0;
+    v.boolean = false;
+
+    for (int i = 0; i < 16; i++) v.m[i] = 0.0;
+
+    v.elements = NULL;
+    v.element_count = 0;
+
+    v.px = pos.x; v.py = pos.y; v.pz = pos.z;
+    v.vx = vel.x; v.vy = vel.y; v.vz = vel.z;
+    v.fx = 0.0; v.fy = 0.0; v.fz = 0.0;
+    v.mass = mass;
+
+    return v;
+}
+
+static bool is_particle(KValue value) {
+    return value.type == K_VALUE_PARTICLE;
 }
 
 static KValue make_vec3(double x, double y, double z) {
@@ -369,6 +416,14 @@ static void print_value_inner(KValue value) {
         }
 
         printf("]");
+    } else if (is_particle(value)) {
+        printf(
+            "particle(position: vec3(%g, %g, %g), velocity: vec3(%g, %g, %g), force: vec3(%g, %g, %g), mass: %g",
+            value.px, value.py, value.pz,
+            value.vx, value.vy, value.vz,
+            value.fx, value.fy, value.fz,
+            value.mass
+        );
     }
 }
 
@@ -1087,6 +1142,67 @@ static KValue evaluate(ASTNode* node) {
                 return make_number((double)a.element_count);
             }
 
+            if (strcmp(name, "apply_force") == 0) {
+                KValue p = evaluate(node->statements[0]);
+                KValue f = evaluate(node->statements[1]);
+
+                if (!is_particle(p)) {
+                    runtime_error("apply_force() expects a particle", node->token.line);
+                }
+
+                if (!is_vec3(f)) {
+                    runtime_error("apply_force() expects a vec3 force", node->token.line);
+                }
+
+                KValue r = p;
+                r.fx += f.x;
+                r.fy += f.y;
+                r.fz += f.z;
+
+                return r;
+            }
+
+            if (strcmp(name, "clear_force") == 0) {
+                KValue p = evaluate(node->statements[0]);
+
+                if (!is_particle(p)) {
+                    runtime_error("clear_force() expects a particle", node->token.line);
+                }
+
+                KValue r = p;
+                r.fx = 0.0;
+                r.fy = 0.0;
+                r.fz = 0.0;
+
+                return r;
+            }
+
+            if (strcmp(name, "integrate") == 0) {
+                KValue p = evaluate(node->statements[0]);
+                double dt = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+
+                if (!is_particle(p)) {
+                    runtime_error("integrate() expects a particle", node->token.line);
+                }
+
+                if (p.mass == 0.0) {
+                    runtime_error("integrate() on zero-mass particle", node->token.line);
+                }
+
+                Vec3 force = {p.fx, p.fy, p.fz};
+                Vec3 accel = vec3_scale(force, 1.0 / p.mass);
+
+                Vec3 vel = {p.vx, p.vy, p.vz};
+                Vec3 new_vel = vec3_add(vel, vec3_scale(accel, dt));
+
+                Vec3 pos = {p.px, p.py, p.pz};
+                Vec3 new_pos = vec3_add(pos, vec3_scale(new_vel, dt));
+
+                return make_particle(new_pos, new_vel, p.mass);
+            }
+
             runtime_error("Unknown built-in function", node->token.line);
             return make_number(0.0);
         }
@@ -1128,6 +1244,74 @@ static KValue evaluate(ASTNode* node) {
         }
 
         case NODE_INDEX_ASSIGN: {
+            return make_number(0.0);
+        }
+
+        case NODE_PARTICLE: {
+            int argc = node->statement_count;
+
+            KValue p0 = evaluate(node->statements[0]);
+            KValue v0 = evaluate(node->statements[1]);
+
+            double mass = 1.0;
+
+            if (argc == 3) {
+                KValue m = evaluate(node->statements[2]);
+
+                if (!is_number(m)) {
+                    runtime_error("particle mass must be a number", node->token.line);
+                }
+
+                mass = m.number;
+            }
+
+            if (!is_vec3(p0) || !is_vec3(v0)) {
+                runtime_error(
+                    "particle() expects vec3 position and velocity",
+                    node->token.line
+                );
+            }
+
+            return make_particle(kvalue_to_vec3(p0), kvalue_to_vec3(v0), mass);
+        }
+
+        case NODE_MEMBER: {
+            KValue base = evaluate(node->left);
+            const char* member = node->token.lexeme;
+
+            if (is_vec3(base)) {
+                if (strcmp(member, "x") == 0) return make_number(base.x);
+                if (strcmp(member, "y") == 0) return make_number(base.y);
+                if (strcmp(member, "z") == 0) return make_number(base.z);
+
+                runtime_error("Unknown vec3 member", node->token.line);
+            }
+
+            if (is_particle(base)) {
+                if (strcmp(member, "position") == 0) {
+                    return make_vec3(base.px, base.py, base.pz);
+                }
+
+                if (strcmp(member, "velocity") == 0) {
+                    return make_vec3(base.vx, base.vy, base.vz);
+                }
+
+                if (strcmp(member, "force") == 0) {
+                    return make_vec3(base.fx, base.fy, base.fz);
+                }
+
+                if (strcmp(member, "mass") == 0) {
+                    return make_number(base.mass);
+                }
+
+                runtime_error("Unknown particle member", node->token.line);
+            }
+
+            runtime_error(
+                "Member access expects vec3 or particle",
+                node->token.line
+            );
+
             return make_number(0.0);
         }
 

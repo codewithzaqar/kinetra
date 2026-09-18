@@ -144,6 +144,8 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_VEC3, id_buf, 0, line);
             } else if (strcmp(id_buf, "mat4") == 0) {
                 tokens[count++] = make_token(TOKEN_MAT4, id_buf, 0, line);
+            } else if (strcmp(id_buf, "particle") == 0) {
+                tokens[count++] = make_token(TOKEN_PARTICLE, id_buf, 0, line);
 
             // ---- Built-in functions ----
             } else if (
@@ -158,20 +160,16 @@ Token* lex(const char* source, int* token_count) {
                 strcmp(id_buf, "sin") == 0 ||
                 strcmp(id_buf, "cos") == 0 ||
                 strcmp(id_buf, "tan") == 0 ||
-                strcmp(id_buf, "len") == 0 ||
                 strcmp(id_buf, "translate") == 0 ||
                 strcmp(id_buf, "rotate") == 0 ||
                 strcmp(id_buf, "scale") == 0 ||
-                strcmp(id_buf, "transform") == 0
+                strcmp(id_buf, "transform") == 0 ||
+                strcmp(id_buf, "len") == 0 ||
+                strcmp(id_buf, "integrate") == 0 ||
+                strcmp(id_buf, "apply_force") == 0 ||
+                strcmp(id_buf, "clear_force") == 0
             ) {
                 tokens[count++] = make_token(TOKEN_BUILTIN, id_buf, 0, line);
-
-            // ---- Future simulation keywords (reserved) ----
-            } else if (
-                strcmp(id_buf, "particle") == 0 ||
-                strcmp(id_buf, "integrate") == 0
-            ) {
-                tokens[count++] = make_token(TOKEN_SIM_KEYWORD, id_buf, 0, line);
 
             // ---- Plain identifier ----
             } else {
@@ -279,20 +277,24 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_RBRACE, "}", 0, line);
                 break;
 
-            case ';':
-                tokens[count++] = make_token(TOKEN_SEMICOLON, ";", 0, line);
-                break;
-
-            case ',':
-                tokens[count++] = make_token(TOKEN_COMMA, ",", 0, line);
-                break;
-
             case '[':
                 tokens[count++] = make_token(TOKEN_LBRACKET, "[", 0, line);
                 break;
 
             case ']':
                 tokens[count++] = make_token(TOKEN_RBRACKET, "]", 0, line);
+                break;
+
+            case '.':
+                tokens[count++] = make_token(TOKEN_DOT, ".", 0, line);
+                break;
+
+            case ';':
+                tokens[count++] = make_token(TOKEN_SEMICOLON, ";", 0, line);
+                break;
+
+            case ',':
+                tokens[count++] = make_token(TOKEN_COMMA, ",", 0, line);
                 break;
 
             default:

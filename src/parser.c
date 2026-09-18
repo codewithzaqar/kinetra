@@ -183,7 +183,9 @@ static ASTNode* primary() {
             strcmp(name, "min") == 0 ||
             strcmp(name, "max") == 0 ||
             strcmp(name, "rotate") == 0 ||
-            strcmp(name, "transform") == 0
+            strcmp(name, "transform") == 0 ||
+            strcmp(name, "apply_force") == 0 ||
+            strcmp(name, "integrate") == 0
         ) {
             if (arity != 2) {
                 fprintf(
@@ -216,7 +218,8 @@ static ASTNode* primary() {
             strcmp(name, "abs") == 0 ||
             strcmp(name, "sin") == 0 ||
             strcmp(name, "cos") == 0 ||
-            strcmp(name, "tan") == 0
+            strcmp(name, "tan") == 0 ||
+            strcmp(name, "clear_force") == 0
         ) {
             if (arity != 1) {
                 fprintf(
@@ -295,6 +298,41 @@ static ASTNode* primary() {
         return node;
     }
 
+    // particle(pos, vel) or particle(pos, vel, mass)
+    if (t.type == TOKEN_PARTICLE) {
+        Token part_token = advance();
+
+        expect(TOKEN_LPAREN, "Expected '(' after 'particle'");
+
+        ASTNode* node = create_node(NODE_PARTICLE, part_token);
+
+        for (;;) {
+            ASTNode* arg = expression();
+            add_statement(node, arg);
+
+            if (peek().type == TOKEN_COMMA) {
+                advance();
+                continue;
+            }
+
+            break;
+        }
+
+        expect(TOKEN_RPAREN, "Expected ')' after particle constructor");
+
+        if (node->statement_count != 2 && node->statement_count != 3) {
+            fprintf(
+                stderr,
+                "[Parser Error] particle() expects 2 or 3 arguments, got %d at line %d\n",
+                node->statement_count,
+                part_token.line
+            );
+            exit(1);
+        }
+
+        return node;
+    }
+
     if (t.type == TOKEN_LPAREN) {
         advance();
 
@@ -328,18 +366,44 @@ static ASTNode* unary() {
     ASTNode* node = primary();
 
     // Postfix index chains: a[i], m[1][0] f()[2]
-    while (peek().type == TOKEN_LBRACKET) {
-        Token bracket = advance();
+    for (;;) {
+        if (peek().type == TOKEN_LBRACKET) {
+            Token bracket = advance();
 
-        ASTNode* idx = expression();
+            ASTNode* idx = expression();
 
-        expect(TOKEN_RBRACKET, "Expected ']' after index");
+            expect(TOKEN_RBRACKET, "Expected ']' after index");
 
-        ASTNode* index_node = create_node(NODE_INDEX, bracket);
-        index_node->left = node;
-        index_node->right = idx;
+            ASTNode* index_node = create_node(NODE_INDEX, bracket);
+            index_node->left = node;
+            index_node->right = idx;
 
-        node = index_node;
+            node = index_node;
+            continue;
+        }
+
+        if (peek().type == TOKEN_DOT) {
+            advance(); // consume '.'
+
+            if (peek().type != TOKEN_IDENTIFIER) {
+                fprintf(
+                    stderr,
+                    "[Parser Error] Expected name after '.' at line %d",
+                    peek().line
+                );
+                exit(1);
+            }
+
+            Token member = advance();
+
+            ASTNode* member_node = create_node(NODE_MEMBER, member);
+            member_node->left = node;
+
+            node = member_node;
+            continue;
+        }
+
+        break;
     }
 
     return node;
@@ -780,7 +844,8 @@ void free_ast(ASTNode* node) {
         node->type == NODE_BLOCK ||
         node->type == NODE_FUNCTION ||
         node->type == NODE_MAT4 ||
-        node->type == NODE_ARRAY_LITERAL
+        node->type == NODE_ARRAY_LITERAL ||
+        node->type == NODE_PARTICLE
     ) {
         if (node->statements) {
             for (int i = 0; i < node->statement_count; i++) {
