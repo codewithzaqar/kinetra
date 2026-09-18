@@ -1,9 +1,14 @@
 # Kinetra Changelog
 
-## [0.0.1a15] - 2026-09-18
+## [0.0.1a16] - 2026-09-18
 
 ### Added
 
+- Added unified diagnostics module: `include/diagnostics.h`, `src/diagnostics.c`.
+- Added column tracking to tokens (`Token.column`).
+- Added source snippet rendering with caret on lex and parse errors.
+- Added snippet reading (line only) for runtime errors.
+- Added process exit codes: 0 ok, 1 lex, 2 parse, 3 runtime, 4 I/O, 64 usage.
 - Added `pow(x, y)` with NaN result checking.
 - Added `exp(x)`.
 - Added `log(x)` with non-positive domain checking.
@@ -150,6 +155,10 @@
 
 ### Changed
 
+- Lex errors are now fatal and reported through the diagnostics module.
+- Parser errors report through `diag_error()` with line:column.
+- Runtime errors report through `diag_error()` with line.
+- `Makefile` now compiles `src/diagnostics.c`.
 - Numeric standard library is now complete for the v0.0.1 scope.
 - `integrate` is no longer a reserved sim keyword; it is now a built-in function.
 - `KValue` is now self-referential tagged struct with array storage.
@@ -181,6 +190,9 @@
 
 ### Known Limitations
 
+- Runtime errors do not yet carry columns (tokens have them; call-site
+migration is planned).
+- Caret alignment assumes spaces; tabs may misalign the caret. 
 - Member assignment (`p.position = ...`) is not supported yet.
 - Arrays are shared by reference; there is no copy operator yet.
 - No garbage collection; array memory lives until process exit.

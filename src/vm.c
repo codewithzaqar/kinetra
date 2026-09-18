@@ -1,5 +1,6 @@
 #include "../include/kinetra.h"
 #include "../include/hpc_math.h"
+#include "../include/diagnostics.h"
 #include <math.h>
 
 // ============================================================
@@ -108,13 +109,7 @@ static KValue return_value;
 // ============================================================
 
 static void runtime_error(const char* message, int line) {
-    fprintf(
-        stderr,
-        "[VM Error] %s at line %d\n",
-        message,
-        line
-    );
-    exit(1);
+    diag_error(DIAG_RUNTIME, line, 0, message);
 }
 
 // ============================================================

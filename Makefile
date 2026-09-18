@@ -6,7 +6,7 @@ SRC_DIR = src
 INC_DIR = include
 BUILD_DIR = build
 
-SRCS = $(SRC_DIR)/main.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/vm.c $(SRC_DIR)/hpc_math.c
+SRCS = $(SRC_DIR)/main.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/vm.c $(SRC_DIR)/hpc_math.c $(SRC_DIR)/diagnostics.c
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 TARGET = kinetra
 

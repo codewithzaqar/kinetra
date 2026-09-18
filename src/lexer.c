@@ -1,9 +1,12 @@
 #include "../include/kinetra.h"
+#include "../include/diagnostics.h"
 #include <ctype.h>
 
 // ============================================================
 // Token Constructor
 // ============================================================
+
+static int token_start_column = 1;
 
 static Token make_token(TokenType type, const char* lexeme, double value, int line) {
     Token t;
@@ -14,6 +17,7 @@ static Token make_token(TokenType type, const char* lexeme, double value, int li
 
     t.value = value;
     t.line = line;
+    t.column = token_start_column;
 
     return t;
 }
@@ -26,22 +30,29 @@ Token* lex(const char* source, int* token_count) {
     Token* tokens = malloc(sizeof(Token) * MAX_TOKENS);
 
     if (!tokens) {
-        fprintf(stderr, "[Lexer Error] Out of memory\n");
-        exit(1);
+        fprintf(stderr, "[Kinetra Error] Out of memory\n");
+        exit(KINETRA_EXIT_LEX);
     }
 
     int count = 0;
     int line = 1;
+    int column = 1;
     int i = 0;
     int len = strlen(source);
 
     while (i < len && count < MAX_TOKENS - 1) {
-        // Cast to unsigned char to safely handle extended ASCII / UTF-8 bytes
+        token_start_column = column;
+
         unsigned char c = (unsigned char)source[i];
 
         // Skip standard whitespace AND carriage returns (\r)
         if (isspace(c) || c == '\r') {
-            if (c == '\n') line++;
+            if (c == '\n') {
+                line++;
+                column = 1;
+            } else {
+                column++;
+            }
             i++;
             continue;
         }
@@ -54,18 +65,21 @@ Token* lex(const char* source, int* token_count) {
             (unsigned char)source[i + 2] == 0xBF
         ) {
             i += 3;
+            column += 3;
             continue;
         }
 
-        // Ignore any non-ASCII characters (smart quotes, zero-width spaces, etc.)
+        // Ignore any non-ASCII characters
         if (c > 127) {
             i++;
+            column++;
             continue;
         }
 
         // Ignore stray ASCII control characters
         if (c < 0x20 || c == 0x7F) {
             i++;
+            column++;
             continue;
         }
 
@@ -73,6 +87,7 @@ Token* lex(const char* source, int* token_count) {
         if (c == '/' && i + 1 < len && source[i + 1] == '/') {
             while (i < len && source[i] != '\n') {
                 i++;
+                column++;
             }
             continue;
         }
@@ -84,17 +99,12 @@ Token* lex(const char* source, int* token_count) {
 
             while (i < len && (isdigit(source[i]) || source[i] == '.') && j < 63) {
                 num_buf[j++] = source[i++];
+                column++;
             }
 
             num_buf[j] = '\0';
 
-            tokens[count++] = make_token(
-                TOKEN_NUMBER,
-                num_buf,
-                atof(num_buf),
-                line
-            );
-
+            tokens[count++] = make_token(TOKEN_NUMBER, num_buf, atof(num_buf), line);
             continue;
         }
 
@@ -105,6 +115,7 @@ Token* lex(const char* source, int* token_count) {
 
             while (i < len && (isalnum(source[i]) || source[i] == '_') && j < 255) {
                 id_buf[j++] = source[i++];
+                column++;
             }
 
             id_buf[j] = '\0';
@@ -210,6 +221,7 @@ Token* lex(const char* source, int* token_count) {
                 if (i + 1 < len && source[i + 1] == '=') {
                     tokens[count++] = make_token(TOKEN_EQ, "==", 0, line);
                     i++;
+                    column++;
                 } else {
                     tokens[count++] = make_token(TOKEN_ASSIGN, "=", 0, line);
                 }
@@ -219,6 +231,7 @@ Token* lex(const char* source, int* token_count) {
                 if (i + 1 < len && source[i + 1] == '=') {
                     tokens[count++] = make_token(TOKEN_NE, "!=", 0, line);
                     i++;
+                    column++;
                 } else {
                     tokens[count++] = make_token(TOKEN_NOT, "!", 0, line);
                 }
@@ -228,6 +241,7 @@ Token* lex(const char* source, int* token_count) {
                 if (i + 1 < len && source[i + 1] == '=') {
                     tokens[count++] = make_token(TOKEN_LE, "<=", 0, line);
                     i++;
+                    column++;
                 } else {
                     tokens[count++] = make_token(TOKEN_LT, "<", 0, line);
                 }
@@ -237,6 +251,7 @@ Token* lex(const char* source, int* token_count) {
                 if (i + 1 < len && source[i + 1] == '=') {
                     tokens[count++] = make_token(TOKEN_GE, ">=", 0, line);
                     i++;
+                    column++;
                 } else {
                     tokens[count++] = make_token(TOKEN_GT, ">", 0, line);
                 }
@@ -246,13 +261,9 @@ Token* lex(const char* source, int* token_count) {
                 if (i + 1 < len && source[i + 1] == '&') {
                     tokens[count++] = make_token(TOKEN_AND, "&&", 0, line);
                     i++;
+                    column++;
                 } else {
-                    fprintf(
-                        stderr,
-                        "[Lexer Error] Single '&' at line %d; did you mean '&&'?\n",
-                        line
-                    );
-                    tokens[count++] = make_token(TOKEN_ERROR, "?", 0, line);
+                    diag_error(DIAG_LEX, line, column, "Single '&'; did you mean '&&'?");
                 }
                 break;
 
@@ -260,13 +271,9 @@ Token* lex(const char* source, int* token_count) {
                 if (i + 1 < len && source[i + 1] == '|') {
                     tokens[count++] = make_token(TOKEN_OR, "||", 0, line);
                     i++;
+                    column++;
                 } else {
-                    fprintf(
-                        stderr,
-                        "[Lexer Error] Single '|' at line %d; did you mean '||'?\n",
-                        line
-                    );
-                    tokens[count++] = make_token(TOKEN_ERROR, "?", 0, line);
+                    diag_error(DIAG_LEX, line, column, "Single '|' did you mean '||'?");
                 }
                 break;
 
@@ -306,21 +313,18 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_COMMA, ",", 0, line);
                 break;
 
-            default:
-                fprintf(
-                    stderr,
-                    "[Lexer Error] Unexpected character '%c' (0x%02X) at line %d\n",
-                    c,
-                    c,
-                    line
-                );
-                tokens[count++] = make_token(TOKEN_ERROR, "?", 0, line);
-                break;
+            default: {
+                char msg[128];
+                snprintf(msg, sizeof(msg), "Unexpected character '%c' (0x%02X)", c, c);
+                diag_error(DIAG_LEX, line, column, msg);
+            }
         }
 
         i++;
+        column++;
     }
 
+    token_start_column = column;
     tokens[count++] = make_token(TOKEN_EOF, "EOF", 0, line);
     *token_count = count;
 

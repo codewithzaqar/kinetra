@@ -1,4 +1,5 @@
 #include "../include/kinetra.h"
+#include "../include/diagnostics.h"
 
 static int current = 0;
 static Token* current_tokens;
@@ -14,13 +15,7 @@ static Token advance() {
 
 static Token expect(TokenType type, const char* message) {
     if (peek().type != type) {
-        fprintf(
-            stderr,
-            "[Parser Error] %s at line %d\n",
-            message,
-            peek().line
-        );
-        exit(1);
+        diag_error(DIAG_PARSE, peek().line, peek().column, message);
     }
 
     return advance();
