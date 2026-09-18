@@ -1,20 +1,20 @@
-// Kinetra v0.0.1a14 test
+// Kinetra v0.0.1a15 test
 
-let gravity = vec3(0.0, 0.0 - 9.8, 0.0);
+print pow(2.0, 10.0);
+print exp(0.0);
+print log(1.0);
+print floor(2.7);
+print ceil(2.1);
+print round(2.5);
+print clamp(15.0, 0.0, 10.0);
+print lerp(0.0, 10.0, 0.25);
+print lerp(vec3(0.0, 0.0, 0.0), vec3(2.0, 4.0, 6.0), 0.5);
+print reflect(vec3(1.0, 0.0 - 1.0, 0.0), vec3(0.0, 1.0, 0.0));
 
-let p = particle(vec3(0.0, 10.0, 0.0), vec3(1.0, 0.0, 0.0), 2.0);
+let p = particle(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0 - 2.0, 0.0));
+let n = vec3(0.0, 1.0, 0.0);
 
-print p.position;
-print p.mass;
-
-sim 3 dt 0.5 {
-	p = apply_force(p, gravity * p.mass);
-	p = integrate(p, dt);
-	print p.position;
+sim 1 dt 1.0 {
+	let v = reflect(p.velocity, n);
+	print v;
 }
-
-print p.velocity;
-
-let v = vec3(3.0, 4.0, 0.0);
-print v.x;
-print v.y;

@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define KINETRA_VERSION "0.0.1a14"
+#define KINETRA_VERSION "0.0.1a15"
 #define MAX_TOKENS 4096
 #define MAX_AST_NODES 2048
 

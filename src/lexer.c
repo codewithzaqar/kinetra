@@ -167,7 +167,16 @@ Token* lex(const char* source, int* token_count) {
                 strcmp(id_buf, "len") == 0 ||
                 strcmp(id_buf, "integrate") == 0 ||
                 strcmp(id_buf, "apply_force") == 0 ||
-                strcmp(id_buf, "clear_force") == 0
+                strcmp(id_buf, "clear_force") == 0 ||
+                strcmp(id_buf, "pow") == 0 ||
+                strcmp(id_buf, "exp") == 0 ||
+                strcmp(id_buf, "log") == 0 ||
+                strcmp(id_buf, "floor") == 0 ||
+                strcmp(id_buf, "ceil") == 0 ||
+                strcmp(id_buf, "round") == 0 ||
+                strcmp(id_buf, "clamp") == 0 ||
+                strcmp(id_buf, "lerp") == 0 ||
+                strcmp(id_buf, "reflect") == 0
             ) {
                 tokens[count++] = make_token(TOKEN_BUILTIN, id_buf, 0, line);
 

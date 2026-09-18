@@ -1,9 +1,16 @@
 # Kinetra Changelog
 
-## [0.0.1a14] - 2026-09-18
+## [0.0.1a15] - 2026-09-18
 
 ### Added
 
+- Added `pow(x, y)` with NaN result checking.
+- Added `exp(x)`.
+- Added `log(x)` with non-positive domain checking.
+- Added `floor(x)`, `ceil(x)`, `round(x)`.
+- Added `clamp(x, lo, hi)` with `lo <= hi` validation.
+- Added `lerp(a, b, t)` for numbers and vec3 values.
+- Added `reflect(v, n)` vector reflection.
 - Added `particle` value type (positon, velocity, force, mass).
 - Added `particle(pos, vel)` and `particle(pos, vel, mass)` constructors.
 - Added member access operator `.` for vec3 (`.x .y .z`) and particles
@@ -143,6 +150,7 @@
 
 ### Changed
 
+- Numeric standard library is now complete for the v0.0.1 scope.
 - `integrate` is no longer a reserved sim keyword; it is now a built-in function.
 - `KValue` is now self-referential tagged struct with array storage.
 - `print_value()` now delegates to a recursive inner printer.

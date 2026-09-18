@@ -185,7 +185,9 @@ static ASTNode* primary() {
             strcmp(name, "rotate") == 0 ||
             strcmp(name, "transform") == 0 ||
             strcmp(name, "apply_force") == 0 ||
-            strcmp(name, "integrate") == 0
+            strcmp(name, "integrate") == 0 ||
+            strcmp(name, "pow") == 0 ||
+            strcmp(name, "reflect") == 0
         ) {
             if (arity != 2) {
                 fprintf(
@@ -199,7 +201,9 @@ static ASTNode* primary() {
             }
         } else if (
             strcmp(name, "translate") == 0 ||
-            strcmp(name, "scale") == 0
+            strcmp(name, "scale") == 0 ||
+            strcmp(name, "clamp") == 0 ||
+            strcmp(name, "lerp") == 0
         ) {
             if (arity != 3) {
                 fprintf(
@@ -219,7 +223,12 @@ static ASTNode* primary() {
             strcmp(name, "sin") == 0 ||
             strcmp(name, "cos") == 0 ||
             strcmp(name, "tan") == 0 ||
-            strcmp(name, "clear_force") == 0
+            strcmp(name, "clear_force") == 0 ||
+            strcmp(name, "exp") == 0 ||
+            strcmp(name, "log") == 0 ||
+            strcmp(name, "floor") == 0 ||
+            strcmp(name, "ceil") == 0 ||
+            strcmp(name, "round") == 0
         ) {
             if (arity != 1) {
                 fprintf(

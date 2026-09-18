@@ -1203,6 +1203,137 @@ static KValue evaluate(ASTNode* node) {
                 return make_particle(new_pos, new_vel, p.mass);
             }
 
+            if (strcmp(name, "pow") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+                double b = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+
+                double r = pow(a, b);
+
+                if (isnan(r)) {
+                    runtime_error("pow() result is not a number", node->token.line);
+                }
+
+                return make_number(r);
+            }
+
+            if (strcmp(name, "exp") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(exp(a));
+            }
+
+            if (strcmp(name, "log") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                if (a <= 0.0) {
+                    runtime_error("log() of non-positive number", node->token.line);
+                }
+
+                return make_number(log(a));
+            }
+
+            if (strcmp(name, "floor") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(floor(a));
+            }
+
+            if (strcmp(name, "ceil") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(ceil(a));
+            }
+
+            if (strcmp(name, "round") == 0) {
+                double a = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+
+                return make_number(round(a));
+            }
+
+            if (strcmp(name, "clamp") == 0) {
+                double x = require_number_arg(
+                    evaluate(node->statements[0]), name, node->token.line
+                );
+                double lo = require_number_arg(
+                    evaluate(node->statements[1]), name, node->token.line
+                );
+                double hi = require_number_arg(
+                    evaluate(node->statements[2]), name, node->token.line
+                );
+
+                if (lo > hi) {
+                    runtime_error("clamp() requires lo <= hi", node->token.line);
+                }
+
+                if (x < lo) return make_number(lo);
+                if (x > hi) return make_number(hi);
+
+                return make_number(x);
+            }
+
+            if (strcmp(name, "lerp") == 0) {
+                KValue a = evaluate(node->statements[0]);
+                KValue b = evaluate(node->statements[1]);
+                double t = require_number_arg(
+                    evaluate(node->statements[2]), name, node->token.line
+                );
+
+                if (is_number(a) && is_number(b)) {
+                    return make_number(a.number + (b.number - a.number) * t);
+                }
+
+                if (is_vec3(a) && is_vec3(b)) {
+                    return make_vec3(
+                        a.x + (b.x - a.x) * t,
+                        a.y + (b.y - a.y) * t,
+                        a.z + (b.z - a.z) * t
+                    );
+                }
+
+                runtime_error(
+                    "lerp() expects matching number or vec3 arguments",
+                    node->token.line
+                );
+
+                return make_number(0.0);
+            }
+
+            if (strcmp(name, "reflect") == 0) {
+                KValue v = evaluate(node->statements[0]);
+                KValue n = evaluate(node->statements[1]);
+
+                if (!is_vec3(v) || !is_vec3(n)) {
+                    runtime_error("reflect() expects vec3 arguments", node->token.line);
+                }
+
+                Vec3 vv = kvalue_to_vec3(v);
+                Vec3 nn = kvalue_to_vec3(n);
+
+                if (vec3_length(nn) == 0.0) {
+                    runtime_error("reflect() normal must be non-zero", node->token.line);
+                }
+
+                double d = vec3_dot(vv, nn);
+
+                Vec3 r = vec3_add(vv, vec3_scale(nn, -2.0 * d));
+
+                return vec3_to_kvalue(r);
+            }
+
             runtime_error("Unknown built-in function", node->token.line);
             return make_number(0.0);
         }
