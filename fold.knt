@@ -1,0 +1,7 @@
+// Kinetra v0.0.1a17 folding demo
+
+print 1.0 + 2.0 * 3.0;
+print true && false;
+print !true;
+print 10.0 / 4.0;
+print 3.0 < 4.0;

@@ -1,9 +1,16 @@
 # Kinetra Changelog
 
-## [0.0.1a16] - 2026-09-18
+## [0.0.1a17] - 2026-09-19
 
 ### Added
 
+- Added compile-time constant folding for arithmetic, comparison,
+logical, and unary `!` operations on literals.
+- Added `--folds` flag reporting the parser fold count.
+- Added `--bench` flag: 100 silent interations with total/avg ms timing.
+- Added `vm_reset()` to clear VM state between benchmark iterations.
+- Added `vm_set_quiet()` to suppress print output during benchmarks.
+- Added `parser_fold_count()` statistics accessor.
 - Added unified diagnostics module: `include/diagnostics.h`, `src/diagnostics.c`.
 - Added column tracking to tokens (`Token.column`).
 - Added source snippet rendering with caret on lex and parse errors.
@@ -155,6 +162,8 @@
 
 ### Changed
 
+- Division by zero is never folded; the runtime error is preserved.
+- CLI argument parsing now supports flags in any position.
 - Lex errors are now fatal and reported through the diagnostics module.
 - Parser errors report through `diag_error()` with line:column.
 - Runtime errors report through `diag_error()` with line.
@@ -188,8 +197,18 @@
 - VM now executes `print` statements directly.
 - Improved repository structure and release hygiene.
 
+### Roadmap Adjustment
+
+- Bytecode VM prototype moved to `v0.0.1a18` so it can be measured
+against the new bench harness immediately.
+- Tooling (REPL, dumps) moved to `v0.0.1a19`.
+- HPC groundwork moved to `v0.0.1a20`; hardening to `v0.0.1a21`.
+
 ### Known Limitations
 
+- Folding covers number/boolean literals only (no vec3/mat4 literals yet).
+- Bench iterations re-allocate arrays each run (no GC); memory grows
+with iteration count on array-heavy programs.
 - Runtime errors do not yet carry columns (tokens have them; call-site
 migration is planned).
 - Caret alignment assumes spaces; tabs may misalign the caret. 

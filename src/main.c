@@ -1,11 +1,14 @@
 #include "../include/kinetra.h"
 #include "../include/hpc_math.h"
 #include "../include/diagnostics.h"
+#include <time.h>
 
 void print_usage() {
     printf("Kinetra Language v%s\n", KINETRA_VERSION);
-    printf("Usage: kinetra <source_file.knt>\n");
+    printf("Usage: kinetra [flags] <source_file.knt>\n");
     printf("Flags:\n");
+    printf("  --bench    Run 100 silent iterations and report timing\n");
+    printf("  --folds    Report how many constant folds the parser performed\n");
     printf("  --hpc      Enable hardware acceleration flags\n");
     printf("  --version  Print version\n");
 }
@@ -67,14 +70,26 @@ char* read_file(const char* path) {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        print_usage();
-        return KINETRA_EXIT_USAGE;
+    bool bench = false;
+    bool show_folds = false;
+    const char* filename = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--version") == 0) {
+            printf("Kinetra v%s\n", KINETRA_VERSION);
+            return KINETRA_EXIT_OK;
+        } else if (strcmp(argv[i], "--bench") == 0) {
+            bench = true;
+        } else if (strcmp(argv[i], "--folds") == 0) {
+            show_folds = true;
+        } else {
+            filename = argv[i];
+        }
     }
 
-    if (strcmp(argv[1], "--version") == 0) {
-        printf("Kinetra v%s\n", KINETRA_VERSION);
-        return KINETRA_EXIT_OK;
+    if (!filename) {
+        print_usage();
+        return KINETRA_EXIT_USAGE;
     }
 
     printf("--- Kinetra Compiler/Runtime v%s ---\n", KINETRA_VERSION);
@@ -83,7 +98,6 @@ int main(int argc, char** argv) {
     init_hpc_subsystem();
 
     // 1. Read Source Code
-    const char* filename = argv[1];
     char* source = read_file(filename);
     diag_set_source(filename, source);
     printf("[1/3] Source loaded: %s\n", filename);
@@ -97,10 +111,42 @@ int main(int argc, char** argv) {
     ASTNode* ast = parse(tokens, token_count);
     printf("[3/3] Parsing complete. AST generated.\n");
 
+    if (show_folds) {
+        printf("[Parser] Constant folds: %d\n", parser_fold_count());
+    }
+
     // 4. Execution (VM)
-    printf("\n--- Executing Simulation ---\n");
-    execute(ast);
-    printf("\n--- Simulation Finished ---\n");
+    if (bench) {
+        const int iterations = 100;
+
+        vm_set_quiet(true);
+        printf("[Bench] Runtime %d iterations...\n", iterations);
+
+        clock_t start = clock();
+
+        for (int i = 0; i < iterations; i++) {
+            vm_reset();
+            execute(ast);
+        }
+
+        clock_t end = clock();
+
+        double total_ms = (double)(end - start) * 1000.0 / CLOCKS_PER_SEC;
+
+        printf(
+            "[Bench] %d iterations: total %.3f ms, avg %.4f ms/iter\n",
+            iterations,
+            total_ms,
+            total_ms / iterations
+        );
+
+        vm_set_quiet(false);
+    } else {
+        printf("\n--- Executing Simulation ---\n");
+        execute(ast);
+        printf("\n--- Simulation Finished ---\n");
+    }
+
 
     // Cleanup
     free_ast(ast);

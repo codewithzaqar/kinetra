@@ -116,6 +116,19 @@ static void runtime_error(const char* message, int line) {
 // Value Constructors and Type Checks
 // ============================================================
 
+static bool vm_quiet = false;
+
+void vm_set_quiet(bool quiet) {
+    vm_quiet = quiet;
+}
+
+void vm_reset(void) {
+    variable_count = 0;
+    function_count = 0;
+    frame_depth = 0;
+    flow_signal = K_FLOW_NORMAL;
+}
+
 static KValue make_number(double value) {
     KValue v;
     v.type = K_VALUE_NUMBER;
@@ -1592,7 +1605,11 @@ static void execute_statement(ASTNode* node) {
     switch (node->type) {
         case NODE_PRINT: {
             KValue value = evaluate(node->left);
-            print_value(value);
+            
+            if (!vm_quiet) {
+                print_value(value);
+            }
+
             break;
         }
 

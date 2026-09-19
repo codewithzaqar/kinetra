@@ -57,6 +57,110 @@ static void add_statement(ASTNode* node, ASTNode* stmt) {
     node->statements[node->statement_count++] = stmt;
 }
 
+static int fold_count = 0;
+
+int parser_fold_count(void) {
+    return fold_count;
+}
+
+static ASTNode* fold_binary(ASTNode* node) {
+    if (node->type != NODE_BINARY_OP) return node;
+    if (!node->left || !node->right) return node;
+
+    // Logical ops on boolean literals
+    if (node->token.type == TOKEN_AND || node->token.type == TOKEN_OR) {
+        if (
+            node->left->type == NODE_BOOLEAN_LITERAL &&
+            node->right->type == NODE_BOOLEAN_LITERAL
+        ) {
+            bool l = node->left->token.type == TOKEN_TRUE;
+            bool r = node->right->token.type == TOKEN_TRUE;
+            bool res = (node->token.type == TOKEN_AND) ? (l && r) : (l || r);
+
+            Token t = node->token;
+            t.type = res ? TOKEN_TRUE : TOKEN_FALSE;
+            snprintf(t.lexeme, sizeof(t.lexeme), "%s", res ? "true" : "false");
+
+            ASTNode* lit = create_node(NODE_BOOLEAN_LITERAL, t);
+            free_ast(node);
+            fold_count++;
+            return lit;
+        }
+
+        return node;
+    }
+
+    // Arithmetic / comparison on number literals
+    if (
+        node->left->type != NODE_NUMBER_LITERAL ||
+        node->right->type != NODE_NUMBER_LITERAL
+    ) {
+        return node;
+    }
+
+    double l = node->left->token.value;
+    double r = node->right->token.value;
+    double result = 0.0;
+    bool is_comparison = false;
+    bool bool_result = false;
+
+    switch (node->token.type) {
+        case TOKEN_OP_ADD: result = l + r; break;
+        case TOKEN_OP_SUB: result = l - r; break;
+        case TOKEN_OP_MUL: result = l * r; break;
+
+        case TOKEN_OP_DIV:
+            // Never fold division by zero keep the runtime error
+            if (r == 0.0) return node;
+            result = l/r;
+            break;
+
+        case TOKEN_LT: is_comparison = true; bool_result = l < r; break;
+        case TOKEN_GT: is_comparison = true; bool_result = l > r; break;
+        case TOKEN_LE: is_comparison = true; bool_result = l <= r; break;
+        case TOKEN_GE: is_comparison = true; bool_result = l >= r; break;
+        case TOKEN_EQ: is_comparison = true; bool_result = l == r; break;
+        case TOKEN_NE: is_comparison = true; bool_result = l != r; break;
+
+        default:
+            return node;
+    }
+
+    Token t = node->token;
+    ASTNode* lit;
+
+    if (is_comparison) {
+        t.type = bool_result ? TOKEN_TRUE : TOKEN_FALSE;
+        snprintf(t.lexeme, sizeof(t.lexeme), "%s", bool_result ? "true" : "false");
+        lit = create_node(NODE_BOOLEAN_LITERAL, t);
+    } else {
+        t.type = TOKEN_NUMBER;
+        t.value = result;
+        snprintf(t.lexeme, sizeof(t.lexeme), "%g", result);
+        lit = create_node(NODE_NUMBER_LITERAL, t);
+    }
+
+    free_ast(node);
+    fold_count++;
+    return lit;
+}
+
+static ASTNode* fold_unary(ASTNode* node) {
+    if (node->type != NODE_UNARY_OP || node->token.type != TOKEN_NOT) return node;
+    if (!node->left || node->left->type != NODE_BOOLEAN_LITERAL) return node;
+
+    bool l = node->left->token.type == TOKEN_TRUE;
+
+    Token t = node->token;
+    t.type = l ? TOKEN_FALSE : TOKEN_TRUE;
+    snprintf(t.lexeme, sizeof(t.lexeme), "%s", l ? "false" : "true");
+
+    ASTNode* lit = create_node(NODE_BOOLEAN_LITERAL, t);
+    free_ast(node);
+    fold_count++;
+    return lit;
+}
+
 // Forward declaration
 static ASTNode* expression();
 static ASTNode* statement();
@@ -364,7 +468,7 @@ static ASTNode* unary() {
         ASTNode* node = create_node(NODE_UNARY_OP, op);
         node->left = unary();
 
-        return node;
+        return fold_unary(node);
     }
 
     ASTNode* node = primary();
@@ -423,7 +527,7 @@ static ASTNode* term() {
         bin_op->left = node;
         bin_op->right = unary();
 
-        node = bin_op;
+        node = fold_unary(bin_op);
     }
 
     return node;
@@ -439,7 +543,7 @@ static ASTNode* additive() {
         bin_op->left = node;
         bin_op->right = term();
 
-        node = bin_op;
+        node = fold_unary(bin_op);
     }
 
     return node;
@@ -465,7 +569,7 @@ static ASTNode* comparison() {
             bin_op->left = node;
             bin_op->right = additive();
 
-            node = bin_op;
+            node = fold_unary(bin_op);
     }
 
     return node;
@@ -481,7 +585,7 @@ static ASTNode* and_expr() {
         bin_op->left = node;
         bin_op->right = comparison();
 
-        node = bin_op;
+        node = fold_unary(bin_op);
     }
 
     return node;
@@ -498,7 +602,7 @@ static ASTNode* expression() {
         bin_op->left = node;
         bin_op->right = and_expr();
 
-        node = bin_op;
+        node = fold_binary(bin_op);
     }
 
     return node;

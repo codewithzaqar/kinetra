@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define KINETRA_VERSION "0.0.1a16"
+#define KINETRA_VERSION "0.0.1a17"
 #define MAX_TOKENS 4096
 #define MAX_AST_NODES 2048
 
@@ -136,5 +136,12 @@ Token* lex(const char* source, int* token_count);
 ASTNode* parse(Token* tokens, int token_count);
 void free_ast(ASTNode* node);
 void execute(ASTNode* ast);
+
+// VM control (benchmarking)
+void vm_reset(void);
+void vm_set_quiet(bool quiet);
+
+// Parser statistics
+int parser_fold_count(void);
 
 #endif
