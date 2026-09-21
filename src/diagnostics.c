@@ -16,6 +16,7 @@ static const char* stage_name(DiagStage stage) {
 		case DIAG_LEX:     return "lex";
 		case DIAG_PARSE:   return "parse";
 		case DIAG_RUNTIME: return "runtime";
+		case DIAG_CODEGEN: return "codegen";
 		default:  return "unknown";
 	}
 }
@@ -25,6 +26,7 @@ static int exit_code_for(DiagStage stage) {
 		case DIAG_LEX:  return KINETRA_EXIT_LEX;
 		case DIAG_PARSE: return KINETRA_EXIT_PARSE;
 		case DIAG_RUNTIME: return KINETRA_EXIT_RUNTIME;
+		case DIAG_CODEGEN: return KINETRA_EXIT_CODEGEN;
 		default:  return KINETRA_EXIT_RUNTIME;
 	}
 }

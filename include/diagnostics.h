@@ -8,11 +8,13 @@
 #define KINETRA_EXIT_RUNTIME 3
 #define KINETRA_EXIT_IO 4
 #define KINETRA_EXIT_USAGE 64
+#define KINETRA_EXIT_CODEGEN 5
 
 typedef enum {
 	DIAG_LEX,
 	DIAG_PARSE,
-	DIAG_RUNTIME
+	DIAG_RUNTIME,
+	DIAG_CODEGEN
 } DiagStage;
 
 // Render the current source file for snippet rendering

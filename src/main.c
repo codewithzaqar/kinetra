@@ -1,6 +1,7 @@
 #include "../include/kinetra.h"
 #include "../include/hpc_math.h"
 #include "../include/diagnostics.h"
+#include "../include/bytecode.h"
 #include <time.h>
 
 void print_usage() {
@@ -10,6 +11,7 @@ void print_usage() {
     printf("  --bench    Run 100 silent iterations and report timing\n");
     printf("  --folds    Report how many constant folds the parser performed\n");
     printf("  --hpc      Enable hardware acceleration flags\n");
+    printf("  --bc       Execute using the prototype bytecode VM\n");
     printf("  --version  Print version\n");
 }
 
@@ -71,6 +73,7 @@ char* read_file(const char* path) {
 
 int main(int argc, char** argv) {
     bool bench = false;
+    bool use_bc = false;
     bool show_folds = false;
     const char* filename = NULL;
 
@@ -82,6 +85,8 @@ int main(int argc, char** argv) {
             bench = true;
         } else if (strcmp(argv[i], "--folds") == 0) {
             show_folds = true;
+        } else if (strcmp(argv[i], "--bc") == 0) {
+            use_bc = true;
         } else {
             filename = argv[i];
         }
@@ -119,14 +124,23 @@ int main(int argc, char** argv) {
     if (bench) {
         const int iterations = 100;
 
+        printf(
+            "[Bench] Runtime %d iterations (%s)...\n", 
+            iterations,
+            use_bc ? "bytecode VM" : "tree-walk VM"
+        );
+
         vm_set_quiet(true);
-        printf("[Bench] Runtime %d iterations...\n", iterations);
 
         clock_t start = clock();
 
         for (int i = 0; i < iterations; i++) {
-            vm_reset();
-            execute(ast);
+            if (use_bc) {
+                bc_run_program(ast, true);
+            } else {
+                vm_reset();
+                execute(ast);
+            }
         }
 
         clock_t end = clock();
@@ -141,6 +155,10 @@ int main(int argc, char** argv) {
         );
 
         vm_set_quiet(false);
+    } else if (use_bc) {
+        printf("\n--- Executing on Bytecode VM ---\n");
+        bc_run_program(ast, false);
+        printf("\n--- Simulation Finished ---\n");
     } else {
         printf("\n--- Executing Simulation ---\n");
         execute(ast);

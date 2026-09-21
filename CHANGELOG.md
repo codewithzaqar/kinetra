@@ -1,9 +1,15 @@
 # Kinetra Changelog
 
-## [0.0.1a17] - 2026-09-19
+## [0.0.1a18] - 2026-09-21
 
 ### Added
 
+- Added prototype bytecode backend: `include/bytecode.h`, `src/bytecode.c`.
+- Added 22 opcodes including short-circuit jump variants.
+- Added `--bc` flag to execute via the bytecode VM.
+- Added compile-time jump pathcing for if/else, while, break, continue.
+- Added `(codegen)` diagnostics stage with exit code 5.
+- Added `--bench` support for both VMs for head-to-head timing.
 - Added compile-time constant folding for arithmetic, comparison,
 logical, and unary `!` operations on literals.
 - Added `--folds` flag reporting the parser fold count.
@@ -162,6 +168,7 @@ logical, and unary `!` operations on literals.
 
 ### Changed
 
+- `Makefile` now compiles `src/bytecode.c`.
 - Division by zero is never folded; the runtime error is preserved.
 - CLI argument parsing now supports flags in any position.
 - Lex errors are now fatal and reported through the diagnostics module.
@@ -206,6 +213,11 @@ against the new bench harness immediately.
 
 ### Known Limitations
 
+- Bytecode subset covers the scalar core only: numbers, booleans,
+variables, arithmetic, comparisons, logical ops, print, if/else,
+while/break/continue.
+- Functions, vec3/mat4/particle/array, built-ins, and sim blocks
+reamin tree-walk only and raise codegen errors under `--bc`.
 - Folding covers number/boolean literals only (no vec3/mat4 literals yet).
 - Bench iterations re-allocate arrays each run (no GC); memory grows
 with iteration count on array-heavy programs.
