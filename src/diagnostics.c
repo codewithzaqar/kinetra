@@ -1,10 +1,24 @@
 #include "../include/diagnostics.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static const char* g_filename = "<unknown>";
 static const char* g_source = NULL;
+
+static bool diag_recoverable = false;
+static jmp_buf* diag_jmp_target = NULL;
+
+void diag_enable_recovery(jmp_buf* buf) {
+	diag_jmp_target = buf;
+	diag_recoverable = true;
+}
+
+void diag_disable_recovery(void) {
+	diag_recoverable = false;
+	diag_jmp_target = NULL;
+}
 
 void diag_set_source(const char* filename, const char* source) {
 	g_filename = filename ? filename : "<unknown>";
@@ -87,6 +101,10 @@ _Noreturn void diag_error(DiagStage stage, int line, int column, const char* mes
 	fprintf(stderr, "\n");
 
 	print_snippet(line, column);
+
+	if (diag_recoverable && diag_jmp_target) {
+		longjmp(*diag_jmp_target, 1);
+	}
 
 	exit(exit_code_for(stage));
 }

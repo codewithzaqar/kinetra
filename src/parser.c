@@ -941,6 +941,84 @@ ASTNode* parse(Token* tokens, int token_count) {
     return root;
 }
 
+const char* ast_node_name(ASTNodeType type) {
+    switch (type) {
+        case NODE_PROGRAM: return "PROGRAM";
+        case NODE_PRINT: return "PRINT";
+        case NODE_LET: return "LET";
+        case NODE_ASSIGN: return "ASSIGN";
+        case NODE_STEP: return "STEP";
+        case NODE_SIMULATION_BLOCK: return "SIM";
+        case NODE_VEC3: return "VEC3";
+        case NODE_MAT4: return "MAT4";
+        case NODE_PARTICLE: return "PARTICLE";
+        case NODE_ARRAY_LITERAL: return "ARRAY";
+        case NODE_INDEX: return "INDEX";
+        case NODE_INDEX_ASSIGN: return "INDEX_ASSIGN";
+        case NODE_MEMBER: return "MEMBER";
+        case NODE_CALL: return "CALL";
+        case NODE_IF: return "IF";
+        case NODE_BLOCK: return "BLOCK";
+        case NODE_WHILE: return "WHILE";
+        case NODE_BREAK: return "BREAK";
+        case NODE_CONTINUE: return "CONTINUE";
+        case NODE_FUNCTION: return "FN";
+        case NODE_RETURN: return "RETURN";
+        case NODE_BINARY_OP: return "BINARY";
+        case NODE_UNARY_OP: return "UNARY";
+        case NODE_NUMBER_LITERAL: return "NUMBER";
+        case NODE_BOOLEAN_LITERAL: return "BOOLEAN";
+        case NODE_VARIABLE: return "VARIABLE";
+        default: return "UNKNOWN";
+    }
+}
+
+static bool ast_node_owns_list(ASTNodeType type) {
+    return
+        type == NODE_PROGRAM ||
+        type == NODE_SIMULATION_BLOCK ||
+        type == NODE_CALL ||
+        type == NODE_BLOCK ||
+        type == NODE_FUNCTION ||
+        type == NODE_MAT4 ||
+        type == NODE_ARRAY_LITERAL ||
+        type == NODE_PARTICLE;
+}
+
+static void ast_dump_node(ASTNode* node, int depth) {
+    if (!node) return;
+
+    for (int i = 0; i < depth; i++) {
+        printf(" ");
+    }
+
+    printf("%s", ast_node_name(node->type));
+
+    if (node->token.lexeme[0]) {
+        printf("'%s'", node->token.lexeme);
+    }
+
+    if (node->type == NODE_NUMBER_LITERAL) {
+        printf("value=%g", node->token.value);
+    }
+
+    printf("(%d:%d)\n", node->token.line, node->token.column);
+
+    if (ast_node_owns_list(node->type)) {
+        for (int i = 0; i < node->statement_count; i++) {
+            ast_dump_node(node->statements[i], depth + 1);
+        }
+    }
+
+    ast_dump_node(node->left, depth + 1);
+    ast_dump_node(node->right, depth + 1);
+    ast_dump_node(node->third, depth + 1);
+}
+
+void ast_dump(ASTNode* node) {
+    ast_dump_node(node, 0);
+}
+
 void free_ast(ASTNode* node) {
     if (!node) return;
 

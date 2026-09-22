@@ -9,15 +9,16 @@ void print_usage() {
     printf("Usage: kinetra [flags] <source_file.knt>\n");
     printf("Flags:\n");
     printf("  --bench    Run 100 silent iterations and report timing\n");
+    printf("  --bc       Execute using the prototype bytecode VM\n");
+    printf("  --tokens   Dump the token stream and exit\n");
+    printf("  --ast      Dump the AST and exit\n");
+    printf("  --repl     Start an interactive REPL\n");
     printf("  --folds    Report how many constant folds the parser performed\n");
     printf("  --hpc      Enable hardware acceleration flags\n");
-    printf("  --bc       Execute using the prototype bytecode VM\n");
     printf("  --version  Print version\n");
 }
 
 char* read_file(const char* path) {
-    // IMPORTANT: binary mode. Text mode translates CRLF -> LF on Windows,
-    // which makes fread() return fewer bytes than ftell() reports.
     FILE* file = fopen(path, "rb");
 
     if (!file) {
@@ -53,7 +54,6 @@ char* read_file(const char* path) {
         exit(KINETRA_EXIT_IO);
     }
 
-    // Use the ACTUAL number of bytes read, not the ftell() length.
     size_t read_len = fread(buffer, 1, (size_t)length, file);
 
     if (ferror(file)) {
@@ -63,7 +63,6 @@ char* read_file(const char* path) {
         exit(KINETRA_EXIT_IO);
     }
 
-    // Terminate exactly after the bytes we actually read.
     buffer[read_len] = '\0';
 
     fclose(file);
@@ -71,10 +70,135 @@ char* read_file(const char* path) {
     return buffer;
 }
 
+static bool is_expression_node(ASTNode* n) {
+    switch (n->type) {
+        case NODE_NUMBER_LITERAL:
+        case NODE_BOOLEAN_LITERAL:
+        case NODE_VARIABLE:
+        case NODE_VEC3:
+        case NODE_MAT4:
+        case NODE_PARTICLE:
+        case NODE_ARRAY_LITERAL:
+        case NODE_INDEX:
+        case NODE_MEMBER:
+        case NODE_BINARY_OP:
+        case NODE_UNARY_OP:
+        case NODE_CALL:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static void run_repl(void) {
+    printf("Kinetra v%s REPL - type 'exit' to quit\n", KINETRA_VERSION);
+
+    char line[4096];
+    char buffer[16384];
+    buffer[0] = '\0';
+
+    jmp_buf repl_jmp;
+
+    for (;;) {
+        printf(buffer[0] ? "... " : "> ");
+        fflush(stdout);
+
+        if (!fgets(line, sizeof(line), stdin)) {
+            printf("\n");
+            break;
+        }
+
+        size_t len = strlen(line);
+
+        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+            line[--len] = '\0';
+        }
+
+        if (len == 0) {
+            // Empty line cancels a pending multi-line submission
+            buffer[0] = '\0';
+            continue;
+        }
+
+        if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) {
+            break;
+        }
+
+        // Append to pending buffer
+        if (buffer[0]) {
+            if (strlen(buffer) + len + 2 < sizeof(buffer)) {
+                strcat(buffer, "\n");
+                strcat(buffer, line);
+            } else {
+                printf("[REPL] input too large, cleared\n");
+                buffer[0] = '\0';
+                continue;
+            }
+        } else {
+            strncpy(buffer, line, sizeof(buffer) - 1);
+            buffer[sizeof(buffer) - 1] = '\0';
+        }
+
+        // Multi-line detection: balanced (), [], {}
+        int balance = 0;
+
+        for (const char* p = buffer; *p; p++) {
+            if (*p == '(' || *p == '[' || *p == '{') balance++;
+            else if (*p == ')' || *p == ']' || *p == '}') balance--;
+        }
+
+        if (balance > 0) {
+            continue;
+        }
+
+        // Execute the submission; recover from errors
+        if (setjmp(repl_jmp) != 0) {
+            diag_disable_recovery();
+            vm_reset_flow();
+            buffer[0] = '\0';
+            continue;
+        }
+
+        diag_enable_recovery(&repl_jmp);
+
+        char* source = malloc(strlen(buffer) + 1);
+        strcpy(source, buffer);
+
+        diag_set_source("<repl>", source);
+
+        int token_count = 0;
+        Token* tokens = lex(source, &token_count);
+        ASTNode* ast = parse(tokens, token_count);
+
+        ASTNode* last = ast->statement_count > 0
+            ? ast->statements[ast->statement_count - 1]
+            : NULL;
+
+        bool echo = last && is_expression_node(last);
+
+        execute(ast);
+
+        if (echo) {
+            vm_eval_and_print(last);
+        }
+
+        free_ast(ast);
+        free(tokens);
+        free(source);
+
+        diag_disable_recovery();
+        vm_reset_flow();
+        buffer[0] = '\0';
+    }
+}
+
 int main(int argc, char** argv) {
     bool bench = false;
     bool use_bc = false;
     bool show_folds = false;
+    bool dump_tokens = false;
+    bool dump_ast = false;
+    bool repl = false;
     const char* filename = NULL;
 
     for (int i = 1; i < argc; i++) {
@@ -83,13 +207,25 @@ int main(int argc, char** argv) {
             return KINETRA_EXIT_OK;
         } else if (strcmp(argv[i], "--bench") == 0) {
             bench = true;
-        } else if (strcmp(argv[i], "--folds") == 0) {
-            show_folds = true;
         } else if (strcmp(argv[i], "--bc") == 0) {
             use_bc = true;
+        } else if (strcmp(argv[i], "--folds") == 0) {
+            show_folds = true;
+        } else if (strcmp(argv[i], "--tokens") == 0) {
+            dump_tokens = true;
+        } else if (strcmp(argv[i], "--ast") == 0) {
+            dump_ast = true;
+        } else if (strcmp(argv[i], "--repl") == 0) {
+            repl = true;
         } else {
             filename = argv[i];
         }
+    }
+
+    if (repl) {
+        init_hpc_subsystem();
+        run_repl();
+        return KINETRA_EXIT_OK;
     }
 
     if (!filename) {
@@ -99,7 +235,6 @@ int main(int argc, char** argv) {
 
     printf("--- Kinetra Compiler/Runtime v%s ---\n", KINETRA_VERSION);
 
-    // Initialize HPC/Simulation subsystems
     init_hpc_subsystem();
 
     // 1. Read Source Code
@@ -112,6 +247,31 @@ int main(int argc, char** argv) {
     Token* tokens = lex(source, &token_count);
     printf("[2/3] Lexing complete. Generated %d tokens.\n", token_count);
 
+    if (dump_tokens) {
+        for (int i = 0; i < token_count; i++) {
+            Token* t = &tokens[i];
+
+            printf(
+                "%04d  %3d:%-3d  %-14s %s",
+                i,
+                t->line,
+                t->column,
+                token_type_name(t->type),
+                t->lexeme
+            );
+
+            if (t->type == TOKEN_NUMBER) {
+                printf("  value=%g", t->value);
+            }
+
+            printf("\n");
+        }
+
+        free(tokens);
+        free(source);
+        return KINETRA_EXIT_OK;
+    }
+
     // 3. Parsing
     ASTNode* ast = parse(tokens, token_count);
     printf("[3/3] Parsing complete. AST generated.\n");
@@ -120,12 +280,21 @@ int main(int argc, char** argv) {
         printf("[Parser] Constant folds: %d\n", parser_fold_count());
     }
 
-    // 4. Execution (VM)
+    if (dump_ast) {
+        ast_dump(ast);
+
+        free_ast(ast);
+        free(tokens);
+        free(source);
+        return KINETRA_EXIT_OK;
+    }
+
+    // 4. Execution
     if (bench) {
         const int iterations = 100;
 
         printf(
-            "[Bench] Runtime %d iterations (%s)...\n", 
+            "[Bench] Running %d iterations (%s)...\n",
             iterations,
             use_bc ? "bytecode VM" : "tree-walk VM"
         );
@@ -164,7 +333,6 @@ int main(int argc, char** argv) {
         execute(ast);
         printf("\n--- Simulation Finished ---\n");
     }
-
 
     // Cleanup
     free_ast(ast);

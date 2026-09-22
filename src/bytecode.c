@@ -1,5 +1,7 @@
 #include "../include/bytecode.h"
 #include "../include/diagnostics.h"
+#include "../include/value.h"
+#include <stdint.h>
 #include <string.h>
 
 // ============================================================

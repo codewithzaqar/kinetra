@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define KINETRA_VERSION "0.0.1a18"
+#define KINETRA_VERSION "0.0.1a19"
 #define MAX_TOKENS 4096
 #define MAX_AST_NODES 2048
 
@@ -143,5 +143,14 @@ void vm_set_quiet(bool quiet);
 
 // Parser statistics
 int parser_fold_count(void);
+
+// Tooling
+const char* token_type_name(TokenType type);
+const char* ast_node_name(ASTNodeType type);
+void ast_dump(ASTNode* node);
+
+// VM helpers for the REPL
+void vm_eval_and_print(ASTNode* node);
+void vm_reset_flow(void);
 
 #endif

@@ -1,6 +1,7 @@
 #include "../include/kinetra.h"
 #include "../include/hpc_math.h"
 #include "../include/diagnostics.h"
+#include "../include/value.h"
 #include <math.h>
 
 // ============================================================
@@ -12,54 +13,6 @@
 #define MAX_FRAME_VARS 64
 #define MAX_FUNCTIONS 256
 #define MAX_CALL_ARGS 64
-
-// ============================================================
-// Value Model
-// ============================================================
-
-typedef enum {
-    K_VALUE_NUMBER,
-    K_VALUE_VEC3,
-    K_VALUE_BOOL,
-    K_VALUE_MAT4,
-    K_VALUE_ARRAY,
-    K_VALUE_PARTICLE
-} KValueType;
-
-typedef struct KValue KValue;
-
-struct KValue {
-    KValueType type;
-
-    double number;
-
-    double x;
-    double y;
-    double z;
-
-    bool boolean;
-
-    double m[16];
-
-    // Particle storage
-    double px;
-    double py;
-    double pz;
-
-    double vx;
-    double vy;
-    double vz;
-
-    double fx;
-    double fy;
-    double fz;
-
-    double mass;
-
-    // Array storage (reference semantics)
-    KValue* elements;
-    int element_count;
-};
 
 // ============================================================
 // Storage: Globals, Frames, Functions
@@ -1714,6 +1667,14 @@ static void execute_statement(ASTNode* node) {
             break;
         }
     }
+}
+
+void vm_eval_and_print(ASTNode* node) {
+    print_value(evaluate(node));
+}
+
+void vm_reset_flow(void) {
+    flow_signal = K_FLOW_NORMAL;
 }
 
 // ============================================================

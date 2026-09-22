@@ -1,9 +1,18 @@
 # Kinetra Changelog
 
-## [0.0.1a18] - 2026-09-21
+## [0.0.1a19] - 2026-09-22
 
 ### Added
 
+- Added `--tokens` flag: full token stream dump with positions.
+- Added `--ast` flag: indented AST dump with node types and positions.
+- Added `--repl` flag: interactive REPL with persistent state.
+- Added multi-line REPL input via bracket balance detection.
+- Added automatic expression echoing in the REPL.
+- Added diagnostics recovery mode (`setjmp`/`longjmp`) so REPL
+sessions survive lex/parse/runtime errors.
+- Added `token_type_name()`, `ast_node_name()`, `ast_dump()`.
+- Added `vm_eval_and_print()` and `vm_reset_flow()`.
 - Added prototype bytecode backend: `include/bytecode.h`, `src/bytecode.c`.
 - Added 22 opcodes including short-circuit jump variants.
 - Added `--bc` flag to execute via the bytecode VM.
@@ -168,6 +177,7 @@ logical, and unary `!` operations on literals.
 
 ### Changed
 
+- CLI now supports `--tokens`, `--ast`, `--repl` alongside existing flags.
 - `Makefile` now compiles `src/bytecode.c`.
 - Division by zero is never folded; the runtime error is preserved.
 - CLI argument parsing now supports flags in any position.
@@ -206,13 +216,14 @@ logical, and unary `!` operations on literals.
 
 ### Roadmap Adjustment
 
-- Bytecode VM prototype moved to `v0.0.1a18` so it can be measured
-against the new bench harness immediately.
-- Tooling (REPL, dumps) moved to `v0.0.1a19`.
 - HPC groundwork moved to `v0.0.1a20`; hardening to `v0.0.1a21`.
 
 ### Known Limitations
 
+- A REPL submission that errors leaks its AST/tokens (no cleanup path
+through longjmp); acceptable for the alpha, planned for hardening.
+- REPL echo re-evaluates the last expression (side-effecting calls run
+twice when echoed).
 - Bytecode subset covers the scalar core only: numbers, booleans,
 variables, arithmetic, comparisons, logical ops, print, if/else,
 while/break/continue.

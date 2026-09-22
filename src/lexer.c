@@ -22,6 +22,59 @@ static Token make_token(TokenType type, const char* lexeme, double value, int li
     return t;
 }
 
+const char* token_type_name(TokenType type) {
+    switch (type) {
+        case TOKEN_EOF:  return "EOF";
+        case TOKEN_NUMBER:  return "NUMBER";
+        case TOKEN_IDENTIFIER:  return "IDENTIFIER";
+        case TOKEN_LET:  return "LET";
+        case TOKEN_PRINT:  return "PRINT";
+        case TOKEN_SIM:  return "SIM";
+        case TOKEN_STEP:  return "STEP";
+        case TOKEN_DT:  return "DT";
+        case TOKEN_IF:  return "IF";
+        case TOKEN_ELSE:  return "ELSE";
+        case TOKEN_TRUE:  return "TRUE";
+        case TOKEN_FALSE: return "FALSE";
+        case TOKEN_WHILE: return "WHILE";
+        case TOKEN_BREAK: return "BREAK";
+        case TOKEN_CONTINUE: return "CONTINUE";
+        case TOKEN_FN: return "FN";
+        case TOKEN_RETURN: return "RETURN";
+        case TOKEN_VEC3: return "VEC3";
+        case TOKEN_MAT4: return "MAT4";
+        case TOKEN_PARTICLE: return "PARTICLE";
+        case TOKEN_BUILTIN: return "BUILTIN";
+        case TOKEN_SIM_KEYWORD: return "SIM_KEYWORD";
+        case TOKEN_MATH_KEYWORD: return "MATH_KEYWORD";
+        case TOKEN_ASSIGN: return "ASSIGN";
+        case TOKEN_OP_ADD: return "OP_ADD";
+        case TOKEN_OP_SUB: return "OP_SUB";
+        case TOKEN_OP_MUL: return "OP_MUL";
+        case TOKEN_OP_DIV: return "OP_DIV";
+        case TOKEN_LPAREN: return "LPAREN";
+        case TOKEN_RPAREN: return "RPAREN";
+        case TOKEN_LBRACE: return "LBRACE";
+        case TOKEN_RBRACE: return "RBRACE";
+        case TOKEN_LBRACKET: return "LBRACKET";
+        case TOKEN_RBRACKET: return "RBRACKET";
+        case TOKEN_DOT: return "DOT";
+        case TOKEN_SEMICOLON: return "SEMICOLON";
+        case TOKEN_COMMA: return "COMMA";
+        case TOKEN_LT: return "LT";
+        case TOKEN_GT: return "GT";
+        case TOKEN_LE: return "LE";
+        case TOKEN_GE: return "GE";
+        case TOKEN_EQ: return "EQ";
+        case TOKEN_NE: return "NE";
+        case TOKEN_AND: return "AND";
+        case TOKEN_OR: return "OR";
+        case TOKEN_NOT: return "NOT";
+        case TOKEN_ERROR: return "ERROR";
+        default: return "UNKNOWN";
+    }
+}
+
 // ============================================================
 // Lexer
 // ============================================================

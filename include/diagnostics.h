@@ -1,6 +1,9 @@
 #ifndef DIAGNOSTICS_H
 #define DIAGNOSTICS_H
 
+#include <setjmp.h>
+#include <stdbool.h>
+
 // Process exit codes
 #define KINETRA_EXIT_OK 0
 #define KINETRA_EXIT_LEX 1
@@ -22,5 +25,9 @@ void diag_set_source(const char* filename, const char* source);
 
 // Report an error with snippet + caret, then exit with the stage's code
 _Noreturn void diag_error(DiagStage stage, int line, int column, const char* message);
+
+// Error recovery (REPL): when enabled, diag_error longjmps instead of exiting
+void diag_enable_recovery(jmp_buf* buf);
+void diag_disable_recovery(void);
 
 #endif
