@@ -1,4 +1,4 @@
-# Kinetra Language Specification --- Draft (v0.0.1a21)
+# Kinetra Language Specification --- Draft (v0.0.1a22)
 
 ## 1. Overview
 
