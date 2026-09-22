@@ -1,0 +1,22 @@
+// Kinetra v0.0.1a20 parallel demo
+
+fn work(n) {
+	let total = 0.0;
+	let i = 0.0;
+
+	while i < n {
+		i = i + 1.0;
+		total = total + sqrt(i);
+	}
+
+	return total;
+}
+
+let results = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+
+parallel for i in len(results) {
+	results[i] = work(20000.0);
+}
+
+print results[0];
+print results[7];

@@ -2,6 +2,12 @@ CC = gcc
 CFLAGS = -Wall -Wextra -O3 -std=c11 -Iinclude
 LDFLAGS = -lm
 
+# Enable OpenMP: make OPENMP=1
+ifeq ($(OPENMP),1)
+CFLAGS += -fopenmp
+LDFLAGS += -fopenmp
+endif
+
 SRC_DIR = src
 INC_DIR = include
 BUILD_DIR = build

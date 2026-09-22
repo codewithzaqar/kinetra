@@ -1662,6 +1662,46 @@ static void execute_statement(ASTNode* node) {
             break;
         }
 
+        case NODE_PARALLEL_FOR: {
+            KValue count_value = evaluate(node->left);
+
+            if (!is_number(count_value)) {
+                runtime_error("parallel for count must be a number", node->token.line);
+            }
+
+            long n = (long)count_value.number;
+
+            if (n < 0) {
+                n = 0;
+            }
+
+            const char* name = node->token.lexeme;
+            ASTNode* body = node->right;
+
+        #ifdef _OPENMP
+            #pragma omp parallel for schedule(static)
+        #endif
+            for (long i = 0; i< n; i++) {
+                // Lane-private VM state
+                int saved_depth = frame_depth;
+                KFlowSignal saved_flow = flow_signal;
+
+                frame_depth = 0;
+                flow_signal = K_FLOW_NORMAL;
+
+                frames[0].count = 0;
+                frame_depth = 1;
+                define_local(name, make_number((double)i));
+
+                execute_statement(body);
+
+                frame_depth = saved_depth;
+                flow_signal = saved_flow;
+            }
+
+            break;
+        } 
+
         default: {
             evaluate(node);
             break;
@@ -1706,3 +1746,7 @@ void execute(ASTNode* ast) {
         }
     }
 }
+
+#ifdef _OPENMP
+#pragma omp threadprivate(frames, frame_depth, flow_signal, return_value)
+#endif

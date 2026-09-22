@@ -1,9 +1,15 @@
 # Kinetra Changelog
 
-## [0.0.1a19] - 2026-09-22
+## [0.0.1a20] - 2026-09-22
 
 ### Added
 
+- Added `parallel for <var> in <count> {...}` data-parallel loop.
+- Added OpenMP backend (`parallel for`, static schedule) behind `make OPENMP=1`.
+- Added thread-private VM frames and flow signals via `threadprivate`.
+- Added OpenMP thread-count reporting in `init_hpc_subsystem()`.
+- Added `TOKEN_PARALLEL`, `TOKEN_FOR`, `TOKEN_IN`.
+- Added `NODE_PARALLEL_FOR`.
 - Added `--tokens` flag: full token stream dump with positions.
 - Added `--ast` flag: indented AST dump with node types and positions.
 - Added `--repl` flag: interactive REPL with persistent state.
@@ -177,6 +183,7 @@ logical, and unary `!` operations on literals.
 
 ### Changed
 
+- Makefile supports opt-in `OPENMP=1` build switch.
 - CLI now supports `--tokens`, `--ast`, `--repl` alongside existing flags.
 - `Makefile` now compiles `src/bytecode.c`.
 - Division by zero is never folded; the runtime error is preserved.
@@ -220,6 +227,13 @@ logical, and unary `!` operations on literals.
 
 ### Known Limitations
 
+- Parallel bodies see globals (read-only in practice) plus their own
+locals; enclosing function locals are not visible.
+- Writing shared globals from parallel lanes races; write only to
+distinct array indices.
+- `break` / `continue` / `return` inside parallel bodies are unsupported.
+- mingw.org MinGW lacks OpenMP; use MinGW-w64 or another toolchain
+for `OPENMP=1`.
 - A REPL submission that errors leaks its AST/tokens (no cleanup path
 through longjmp); acceptable for the alpha, planned for hardening.
 - REPL echo re-evaluates the last expression (side-effecting calls run

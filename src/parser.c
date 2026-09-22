@@ -862,6 +862,56 @@ static ASTNode* statement() {
         return node;
     }
 
+    // parallel for <var> in <count> {...}
+    if (peek().type == TOKEN_PARALLEL) {
+        Token par_token = advance();
+
+        if (peek().type != TOKEN_FOR) {
+            diag_error(
+                DIAG_PARSE,
+                peek().line,
+                peek().column,
+                "Expected 'for' after 'parallel'"
+            );
+        }
+
+        advance(); // consume for
+
+        if (peek().type != TOKEN_IDENTIFIER) {
+            diag_error(
+                DIAG_PARSE,
+                peek().line,
+                peek().column,
+                "Expected loop variable name after 'parallel for'"
+            );
+        }
+
+        Token id = advance();
+
+        if (peek().type != TOKEN_IN) {
+            diag_error(
+                DIAG_PARSE,
+                peek().line,
+                peek().column,
+                "Expected 'in' after parallel loop variable"
+            );
+        }
+
+        advance(); // consume in
+
+        ASTNode* count = expression();
+
+        ASTNode* body = parse_block();
+
+        ASTNode* node = create_node(NODE_PARALLEL_FOR, id);
+        node->left = count;
+        node->right = body;
+
+        (void)par_token;
+
+        return node;
+    }
+
     // identifier = expression;
     // identifier[index] = expression;
     if (

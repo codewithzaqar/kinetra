@@ -1,10 +1,22 @@
 #include "../include/hpc_math.h"
 #include <math.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 void init_hpc_subsystem(void) {
-    // Placeholder for initializing OpenMP threads, CUDA contexts, 
-    // or AVX/SIMD register states for HPC workloads.
-    printf("[HPC] Math & Simulation Subsystem initialized.\n");
+#ifdef _OPENMP
+    printf(
+        "[HPC] Math & Simulation Subsystem initialized.\n"
+        omp_get_max_threads()
+    );
+#else
+    printf(
+        "[HPC] Math & Simulation Subsystem initialized (serial build;"
+        "rebuild with 'make OPENMP=1' for OpenMP).\n"
+    );
+#endif
 }
 
 Vec3 vec3_add(Vec3 a, Vec3 b) {
