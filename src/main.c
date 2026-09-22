@@ -99,6 +99,11 @@ static void run_repl(void) {
 
     jmp_buf repl_jmp;
 
+    // volatile so the values survive longjmp
+    volatile ASTNode* repl_ast = NULL;
+    volatile Token* repl_tokens = NULL;
+    volatile char* repl_source = NULL;
+
     for (;;) {
         printf(buffer[0] ? "... " : "> ");
         fflush(stdout);
@@ -115,7 +120,6 @@ static void run_repl(void) {
         }
 
         if (len == 0) {
-            // Empty line cancels a pending multi-line submission
             buffer[0] = '\0';
             continue;
         }
@@ -124,7 +128,6 @@ static void run_repl(void) {
             break;
         }
 
-        // Append to pending buffer
         if (buffer[0]) {
             if (strlen(buffer) + len + 2 < sizeof(buffer)) {
                 strcat(buffer, "\n");
@@ -139,7 +142,6 @@ static void run_repl(void) {
             buffer[sizeof(buffer) - 1] = '\0';
         }
 
-        // Multi-line detection: balanced (), [], {}
         int balance = 0;
 
         for (const char* p = buffer; *p; p++) {
@@ -151,8 +153,23 @@ static void run_repl(void) {
             continue;
         }
 
-        // Execute the submission; recover from errors
         if (setjmp(repl_jmp) != 0) {
+            // Error path: release whatever the failed submission allocated
+            if (repl_ast) {
+                free_ast((ASTNode*)repl_ast);
+                repl_ast = NULL;
+            }
+
+            if (repl_tokens) {
+                free((void*)repl_tokens);
+                repl_tokens = NULL;
+            }
+
+            if (repl_source) {
+                free((void*)repl_source);
+                repl_source = NULL;
+            }
+
             diag_disable_recovery();
             vm_reset_flow();
             buffer[0] = '\0';
@@ -163,12 +180,16 @@ static void run_repl(void) {
 
         char* source = malloc(strlen(buffer) + 1);
         strcpy(source, buffer);
+        repl_source = source;
 
         diag_set_source("<repl>", source);
 
         int token_count = 0;
         Token* tokens = lex(source, &token_count);
+        repl_tokens = tokens;
+
         ASTNode* ast = parse(tokens, token_count);
+        repl_ast = ast;
 
         ASTNode* last = ast->statement_count > 0
             ? ast->statements[ast->statement_count - 1]
@@ -183,15 +204,19 @@ static void run_repl(void) {
         }
 
         free_ast(ast);
+        repl_ast = NULL;
+
         free(tokens);
+        repl_tokens = NULL;
+
         free(source);
+        repl_source = NULL;
 
         diag_disable_recovery();
         vm_reset_flow();
         buffer[0] = '\0';
     }
 }
-
 int main(int argc, char** argv) {
     bool bench = false;
     bool use_bc = false;

@@ -1,0 +1,29 @@
+// Kinetra v0.0.1a21 scope & const demo
+
+let x = 1.0;
+
+fn probe() {
+	let x = 2.0;
+
+	if true {
+		let x = 3.0;
+		print x;
+	}
+
+	print x;
+	return x;
+}
+
+probe();
+print x;
+
+const limit = 10.0;
+print limit;
+
+let counter = 0.0;
+
+while counter < 2.0 {
+	counter = counter + 1.0;
+	let inner = counter * 100.0;
+	print inner;
+}

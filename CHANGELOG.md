@@ -1,9 +1,13 @@
 # Kinetra Changelog
 
-## [0.0.1a20] - 2026-09-22
+## [0.0.1a21] - 2026-09-22
 
 ### Added
 
+- Added `const` declarations with immutable bindings.
+- Added const checks for assignment, index mutation, and redeclaration.
+- Added `docs/SPEC.md` language specification draft.
+- Added `TOKEN_CONST` and `NODE_CONST`.
 - Added `parallel for <var> in <count> {...}` data-parallel loop.
 - Added OpenMP backend (`parallel for`, static schedule) behind `make OPENMP=1`.
 - Added thread-private VM frames and flow signals via `threadprivate`.
@@ -183,6 +187,10 @@ logical, and unary `!` operations on literals.
 
 ### Changed
 
+- BREAKING: `{}` blocks now introduce lexical scopes; declarations
+inside a block no longer leak out.
+- `while`/`if`/`sim` bodies now scope per execution / iteration.
+- REPL error paths now free AST, tokens, and source (no more leaks).
 - Makefile supports opt-in `OPENMP=1` build switch.
 - CLI now supports `--tokens`, `--ast`, `--repl` alongside existing flags.
 - `Makefile` now compiles `src/bytecode.c`.
@@ -224,6 +232,10 @@ logical, and unary `!` operations on literals.
 ### Roadmap Adjustment
 
 - HPC groundwork moved to `v0.0.1a20`; hardening to `v0.0.1a21`.
+
+### Deferred
+
+- String type stub moved to `v0.0.1a22`.
 
 ### Known Limitations
 

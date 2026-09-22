@@ -206,6 +206,8 @@ Token* lex(const char* source, int* token_count) {
                 tokens[count++] = make_token(TOKEN_FOR, id_buf, 0, line);
             } else if (strcmp(id_buf, "in") == 0) {
                 tokens[count++] = make_token(TOKEN_IN, id_buf, 0, line);
+            } else if (strcmp(id_buf, "const") == 0) {
+                tokens[count++] = make_token(TOKEN_CONST, id_buf, 0, line);
             } else if (strcmp(id_buf, "return") == 0) {
                 tokens[count++] = make_token(TOKEN_RETURN, id_buf, 0, line);
 

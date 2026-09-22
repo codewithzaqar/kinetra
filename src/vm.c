@@ -21,6 +21,7 @@
 typedef struct {
     char name[256];
     KValue value;
+    bool is_const;
 } Variable;
 
 static Variable variables[MAX_VARIABLES];
@@ -29,6 +30,7 @@ static int variable_count = 0;
 typedef struct {
     char names[MAX_FRAME_VARS][256];
     KValue values[MAX_FRAME_VARS];
+    bool consts[MAX_FRAME_VARS];
     int count;
 } Frame;
 
@@ -246,12 +248,32 @@ static KValue* find_variable(const char* name) {
     return NULL;
 }
 
-static void define_local(const char* name, KValue value) {
+static void push_frame(void) {
+    if (frame_depth >= MAX_FRAMES) {
+        runtime_error("Scope nesting too deep", 0);
+    }
+
+    frames[frame_depth].count = 0;
+    frame_depth++;
+}
+
+static void pop_frame(void) {
+    frame_depth--;
+}
+
+static void define_local(const char* name, KValue value, bool is_const) {
     Frame* fr = &frames[frame_depth - 1];
 
     for (int i = 0; i < fr->count; i++) {
         if (strcmp(fr->names[i], name) == 0) {
+            if (fr->consts[i] && !is_const) {
+                char msg[300];
+                snprintf(msg, sizeof(msg), "Cannot redeclare constant '%s'", name);
+                runtime_error(msg, 0);
+            }
+
             fr->values[i] = value;
+            fr->consts[i] = is_const;
             return;
         }
     }
@@ -263,18 +285,26 @@ static void define_local(const char* name, KValue value) {
     strncpy(fr->names[fr->count], name, 255);
     fr->names[fr->count][255] = '\0';
     fr->values[fr->count] = value;
+    fr->consts[fr->count] = is_const;
     fr->count++;
 }
 
-static void define_in_current_scope(const char* name, KValue value) {
+static void define_in_current_scope(const char* name, KValue value, bool is_const) {
     if (frame_depth > 0) {
-        define_local(name, value);
+        define_local(name, value, is_const);
         return;
     }
 
     for (int i = 0; i < variable_count; i++) {
         if (strcmp(variables[i].name, name) == 0) {
+            if (variables[i].is_const && !is_const) {
+                char msg[300];
+                snprintf(msg, sizeof(msg), "Cannot redeclare constant '%s'", name);
+                runtime_error(msg, 0);
+            }
+
             variables[i].value = value;
+            variables[i].is_const = is_const;
             return;
         }
     }
@@ -286,14 +316,20 @@ static void define_in_current_scope(const char* name, KValue value) {
     strncpy(variables[variable_count].name, name, 255);
     variables[variable_count].name[255] = '\0';
     variables[variable_count].value = value;
+    variables[variable_count].is_const = is_const;
     variable_count++;
 }
 
-static void set_variable(const char* name, KValue value) {
-    // Nearest enclosing scope that already has the name
+static void set_variable(const char* name, KValue value, int line) {
     for (int f = frame_depth - 1; f >= 0; f--) {
         for (int i = 0; i < frames[f].count; i++) {
             if (strcmp(frames[f].names[i], name) == 0) {
+                if (frames[f].consts[i]) {
+                    char msg[300];
+                    snprintf(msg, sizeof(msg), "Cannot assign to constant '%s'", name);
+                    runtime_error(msg, line);
+                }
+
                 frames[f].values[i] = value;
                 return;
             }
@@ -302,16 +338,40 @@ static void set_variable(const char* name, KValue value) {
 
     for (int i = 0; i < variable_count; i++) {
         if (strcmp(variables[i].name, name) == 0) {
+            if (variables[i].is_const) {
+                char msg[300];
+                snprintf(msg, sizeof(msg), "Cannot assign to constant '%s'", name);
+                runtime_error(msg, line);
+            }
+
             variables[i].value = value;
             return;
         }
     }
 
-    define_in_current_scope(name, value);
+    define_in_current_scope(name, value, false);
 }
 
-static void set_variable_number(const char* name, double value) {
-    set_variable(name, make_number(value));
+static void set_variable_number(const char* name, double value, int line) {
+    set_variable(name, make_number(value), line);
+}
+
+static bool variable_is_const(const char* name) {
+    for (int f = frame_depth - 1; f>= 0; f--) {
+        for (int i = 0; i < frames[f].count; i++) {
+            if (strcmp(frames[f].names[i], name) == 0) {
+                return frames[f].consts[i];
+            }
+        }
+    }
+
+    for (int i = 0; i < variable_count; i++) {
+        if (strcmp(variables[i].name, name) == 0) {
+            return variables[i].is_const;
+        }
+    }
+
+    return false;
 }
 
 // ============================================================
@@ -740,7 +800,7 @@ static KValue call_user_function(ASTNode* node) {
     for (int i = 0; i < param_count; i++) {
         define_local(
             fn->fn_node->statements[i]->token.lexeme,
-            arg_values[i]
+            arg_values[i], false
         );
     }
 
@@ -1482,41 +1542,38 @@ static void execute_sim(ASTNode* node) {
     }
 
     for (long i = 0; i < steps; i++) {
-        // Built-in loop variables
-        set_variable_number("step_index", (double)i);
-        set_variable_number("dt", dt_value);
+        push_frame();
 
-        bool stop_sim = false;
+        set_variable_number("step_index", (double)i, node->token.line);
+        set_variable_number("dt", dt_value, node->token.line);
 
         for (int j = 0; j < node->statement_count; j++) {
             ASTNode* stmt = node->statements[j];
 
-            // The step declaration controls the loop;
-            // it is not executed as a normal body statement.
             if (stmt->type == NODE_STEP) {
                 continue;
             }
 
             execute_statement(stmt);
 
-            if (flow_signal == K_FLOW_BREAK) {
-                flow_signal = K_FLOW_NORMAL;
-                stop_sim = true;
-                break;
-            }
-
-            if (flow_signal == K_FLOW_CONTINUE) {
-                flow_signal = K_FLOW_NORMAL;
-                break;
-            }
-
-            if (flow_signal == K_FLOW_RETURN) {
-                stop_sim = true;
+            if (flow_signal != K_FLOW_NORMAL) {
                 break;
             }
         }
 
-        if (stop_sim) {
+        pop_frame();
+
+        if (flow_signal == K_FLOW_BREAK) {
+            flow_signal = K_FLOW_NORMAL;
+            break;
+        }
+
+        if (flow_signal == K_FLOW_CONTINUE) {
+            flow_signal = K_FLOW_NORMAL;
+            break;
+        }
+
+        if (flow_signal == K_FLOW_RETURN) {
             break;
         }
     }
@@ -1568,13 +1625,13 @@ static void execute_statement(ASTNode* node) {
 
         case NODE_LET: {
             KValue value = evaluate(node->left);
-            define_in_current_scope(node->token.lexeme, value);
+            define_in_current_scope(node->token.lexeme, value, false);
             break;
         }
 
         case NODE_ASSIGN: {
             KValue value = evaluate(node->left);
-            set_variable(node->token.lexeme, value);
+            set_variable(node->token.lexeme, value, node->token.line);
             break;
         }
 
@@ -1587,6 +1644,12 @@ static void execute_statement(ASTNode* node) {
 
             if (!is_array(*base)) {
                 runtime_error("Index assignment expects an array", node->token.line);
+            }
+
+            if (variable_is_const(node->token.lexeme)) {
+                char msg[300];
+                snprintf(msg, sizeof(msg), "Cannot modify constant '%s'", node->token.lexeme);
+                runtime_error(msg, node->token.line);
             }
 
             KValue idx = evaluate(node->left);
@@ -1621,15 +1684,17 @@ static void execute_statement(ASTNode* node) {
         }
 
         case NODE_BLOCK: {
+            push_frame();
+
             for (int i = 0; i < node->statement_count; i++) {
                 execute_statement(node->statements[i]);
 
-                // Propagate break/continue/return upward without consuming it
                 if (flow_signal != K_FLOW_NORMAL) {
                     break;
                 }
             }
 
+            pop_frame();
             break;
         }
 
@@ -1691,7 +1756,8 @@ static void execute_statement(ASTNode* node) {
 
                 frames[0].count = 0;
                 frame_depth = 1;
-                define_local(name, make_number((double)i));
+                define_local(name, make_number((double)i), false);
+                execute_sim(node);
 
                 execute_statement(body);
 
@@ -1700,7 +1766,13 @@ static void execute_statement(ASTNode* node) {
             }
 
             break;
-        } 
+        }
+
+        case NODE_CONST: {
+            KValue value = evaluate(node->left);
+            define_in_current_scope(node->token.lexeme, value, true);
+            break;
+        }
 
         default: {
             evaluate(node);

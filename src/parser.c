@@ -648,6 +648,35 @@ static ASTNode* statement() {
         return node;
     }
 
+    // const identifier = expression;
+    if (peek().type == TOKEN_CONST) {
+        advance(); // consume const
+
+        if (peek().type != TOKEN_IDENTIFIER) {
+            diag_error(
+                DIAG_PARSE,
+                peek().line,
+                peek().column,
+                "Expected variable name after 'const'"
+            );
+        }
+
+        Token id = advance();
+
+        expect(TOKEN_ASSIGN, "Expected '=' after constant name");
+
+        ASTNode* expr = expression();
+
+        if (peek().type == TOKEN_SEMICOLON) {
+            advance();
+        }
+
+        ASTNode* node = create_node(NODE_CONST, id);
+        node->left = expr;
+
+        return node;
+    }
+
     // let identifier = expression;
     if (peek().type == TOKEN_LET) {
         advance(); // consume let
