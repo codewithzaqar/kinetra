@@ -95,6 +95,7 @@ static KValue bc_number(double value) {
     v.boolean = false;
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
     v.elements = NULL;
+    v.string = NULL;
     v.element_count = 0;
     v.px = 0.0; v.py = 0.0; v.pz = 0.0;
     v.vx = 0.0; v.vy = 0.0; v.vz = 0.0;
@@ -107,6 +108,7 @@ static KValue bc_bool(bool value) {
     KValue v = bc_number(0.0);
     v.type = K_VALUE_BOOL;
     v.boolean = value;
+    v.string = NULL;
     return v;
 }
 

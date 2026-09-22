@@ -441,6 +441,11 @@ static ASTNode* primary() {
         return node;
     }
 
+    if (t.type == TOKEN_STRING) {
+        advance();
+        return create_node(NODE_STRING_LITERAL, t);
+    }
+
     if (t.type == TOKEN_LPAREN) {
         advance();
 

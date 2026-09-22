@@ -1,9 +1,18 @@
 # Kinetra Changelog
 
-## [0.0.1a21] - 2026-09-22
+## [0.0.1a22] - 2026-09-22
 
 ### Added
 
+- Added immutable string value type with reference semantics.
+- Added string literals with `\`, `\\`, `\n`, `\t` escapes.
+- Added string concatenation via `+`.
+- Added string equality via `==` / `!=`.
+- Added `len()` support for strings.
+- Added raw string output in `print`.
+- Added lexer diagnostics for unterminated string literals.
+- Added `TOKEN_STRING` and `NODE_STRING_LITERAL`.
+- Updated `docs/SPEC.md` with string semantics.
 - Added `const` declarations with immutable bindings.
 - Added const checks for assignment, index mutation, and redeclaration.
 - Added `docs/SPEC.md` language specification draft.
@@ -239,6 +248,9 @@ inside a block no longer leak out.
 
 ### Known Limitations
 
+- 255-character literal cap; no slicing, indexing, or formatting.
+- NO GC; concatenated strings live until process exit;
+- Bytecode VM rejects strings (codegen error, exit 5).
 - Parallel bodies see globals (read-only in practice) plus their own
 locals; enclosing function locals are not visible.
 - Writing shared globals from parallel lanes races; write only to

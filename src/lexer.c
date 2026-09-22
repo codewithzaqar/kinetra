@@ -260,6 +260,66 @@ Token* lex(const char* source, int* token_count) {
             continue;
         }
 
+        // String literals: "text" with \"\\ \n \t escapes
+        if (c == '\x22') {
+            char buf[256];
+            int j = 0;
+            int start_line = line;
+
+            i++;  //skip opening quote
+            column++;
+
+            bool closed = false;
+
+            while (i < len) {
+                char ch = source[i];
+
+                if (ch == '\n') {
+                    break; // strings may not span lines
+                }
+
+                if (ch == '\x22') {
+                    closed = true;
+                    i++;
+                    column++;
+                    break;
+                }
+
+                if (ch == '\\' && i + 1 < len) {
+                    char next = source[i + 1];
+                    char decoded = next;
+
+                    if (next == 'n') decoded = '\n';
+                    else if (next == 't') decoded = '\t';
+                    else if (next == '\\') decoded = '\\';
+                    else if (next == '\x22') decoded = '\x22';
+
+                    if (j < 255) buf[j++] = decoded;
+                    i += 2;
+                    column += 2;
+                    continue;
+                }
+
+                if (j < 255) buf[j++] = ch;
+                i++;
+                column++;
+            }
+
+            if (!closed) {
+                diag_error(
+                    DIAG_LEX,
+                    start_line,
+                    token_start_column,
+                    "Unterminated string literal"
+                );
+            }
+
+            buf[j] = '\0';
+
+            tokens[count++] = make_token(TOKEN_STRING, buf, 0, start_line);
+            continue;
+        }
+
         // Operators and punctuation
         switch (c) {
             case '+':

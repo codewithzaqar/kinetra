@@ -9,7 +9,8 @@ typedef enum {
 	K_VALUE_BOOL,
 	K_VALUE_MAT4,
 	K_VALUE_ARRAY,
-	K_VALUE_PARTICLE
+	K_VALUE_PARTICLE,
+	K_VALUE_STRING
 } KValueType;
 
 typedef struct KValue KValue;
@@ -29,6 +30,7 @@ struct KValue {
 
 	KValue* elements;
 	int element_count;
+	char* string;
 
 	double px;
 	double py;

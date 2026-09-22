@@ -101,6 +101,7 @@ static KValue make_number(double value) {
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
     v.elements = NULL;
+    v.string = NULL;
     v.element_count = 0;
 
     return v;
@@ -144,6 +145,7 @@ static KValue make_vec3(double x, double y, double z) {
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
     v.elements = NULL;
+    v.string = NULL;
     v.element_count = 0;
 
     return v;
@@ -161,6 +163,7 @@ static KValue make_bool(bool value) {
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
     v.elements = NULL;
+    v.string = NULL;   
     v.element_count = 0;
 
     return v;
@@ -178,6 +181,7 @@ static KValue make_mat4(const double* m) {
     for (int i = 0; i < 16; i++) v.m[i] = m[i];
 
     v.elements = NULL;
+    v.string = NULL;
     v.element_count = 0;
 
     return v;
@@ -191,6 +195,7 @@ static KValue make_array(int count) {
     v.y = 0.0;
     v.z = 0.0;
     v.boolean = false;
+    v.string = NULL;
 
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
@@ -410,6 +415,9 @@ static void define_function(const char* name, ASTNode* node) {
 // Printing (recursive for nested values)
 // ============================================================
 
+static KValue make_string(const char* text);
+static bool is_string(KValue value);
+
 static void print_value_inner(KValue value) {
     if (is_number(value)) {
         printf("%g", value.number);
@@ -445,6 +453,8 @@ static void print_value_inner(KValue value) {
             value.fx, value.fy, value.fz,
             value.mass
         );
+    } else if (is_string(value)) {
+        printf("%s", value.string);
     }
 }
 
@@ -494,9 +504,31 @@ static KValue mat4_to_kvalue(Mat4 m) {
     }
 
     v.elements = NULL;
+    v.string = NULL;
     v.element_count = 0;
 
     return v;
+}
+
+static KValue make_string(const char* text) {
+    KValue v = make_number(0.0);
+    v.type = K_VALUE_STRING;
+
+    size_t n = strlen(text);
+    char* copy = malloc(n + 1);
+
+    if (!copy) {
+        runtime_error("Out of memory allocating string", 0);
+    }
+
+    strcpy(copy, text);
+    v.string = copy;
+
+    return v;
+}
+
+static bool is_string(KValue value) {
+    return value.type == K_VALUE_STRING;
 }
 
 // ============================================================
@@ -570,6 +602,26 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                     left.y + right.y,
                     left.z + right.z
                 );
+            }
+
+            if (is_string(left) && is_string(right)) {
+                size_t la = strlen(left.string);
+                size_t lb = strlen(right.string);
+
+                char* buf = malloc(la + lb + 1);
+
+                if (!buf) {
+                    runtime_error("Out of memory concatenating strings", op.line);
+                }
+
+                strcpy(buf, left.string);
+                strcat(buf, right.string);
+
+                KValue r = make_number(0.0);
+                r.type = K_VALUE_STRING;
+                r.string = buf;
+
+                return r;
             }
 
             runtime_error("Invalid operands to '+'", op.line);
@@ -716,6 +768,16 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_bool(left.boolean == right.boolean);
             }
 
+            if (is_string(left) && is_string(right)) {
+                bool eq = strcmp(left.string, right.string) == 0;
+
+                if (op.type == TOKEN_NE) {
+                    eq = !eq;
+                }
+
+                return make_bool(eq);
+            }
+
             runtime_error("Invalid operands to '=='", op.line);
             return make_number(0.0);
         }
@@ -735,6 +797,16 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
 
             if (is_bool(left) && is_bool(right)) {
                 return make_bool(left.boolean != right.boolean);
+            }
+
+            if (is_string(left) && is_string(right)) {
+                bool eq = strcmp(left.string, right.string) == 0;
+
+                if (op.type == TOKEN_NE) {
+                    eq = !eq;
+                }
+
+                return make_bool(eq);
             }
 
             runtime_error("Invalid operands to '!='", op.line);
@@ -1156,11 +1228,16 @@ static KValue evaluate(ASTNode* node) {
             if (strcmp(name, "len") == 0) {
                 KValue a = evaluate(node->statements[0]);
 
-                if (!is_array(a)) {
-                    runtime_error("len() expects an array argument", node->token.line);
+                if (is_array(a)) {
+                    return make_number((double)a.element_count);
                 }
 
-                return make_number((double)a.element_count);
+                if (is_string(a)) {
+                    return make_number((double)strlen(a.string));
+                }
+                
+                runtime_error("len() expects an array or string argument", node->token.line);
+
             }
 
             if (strcmp(name, "apply_force") == 0) {
@@ -1465,6 +1542,10 @@ static KValue evaluate(ASTNode* node) {
             );
 
             return make_number(0.0);
+        }
+
+        case NODE_STRING_LITERAL: {
+            return make_string(node->token.lexeme);
         }
 
         default: {

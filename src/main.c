@@ -84,6 +84,7 @@ static bool is_expression_node(ASTNode* n) {
         case NODE_BINARY_OP:
         case NODE_UNARY_OP:
         case NODE_CALL:
+        case NODE_STRING_LITERAL:
             return true;
         default:
             return false;

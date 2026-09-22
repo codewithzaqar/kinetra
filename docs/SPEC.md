@@ -25,6 +25,7 @@ fn return sim step dt parallel for in vec3 mat4 particle`.
 | mat4 | `mat4()` / `mat4(16 numbers)` | row-major |
 | particle | `particle(pos, vel[, mass])` | |
 | array | `[a, b, c]` | reference semantics, heterogeneous |
+| string | `"text"` | immutable, reference semantics, 255-char literal limit |
 
 ## 4. Operator precedence (low -> high)
 
@@ -68,7 +69,9 @@ Vector: `dot cross length normalize reflect`
 Numeric: `sqrt abs min max pow exp log floor ceil round clamp lerp`
 Trig: `sin cos tan`
 Matrix: `translate rotate scale transform`
-Array: `len`
+Array: `len` accepts arrays and strings. Strings support `+` (concatentation)
+and `==`/`!=` (byte-wise comparison). `print` emits string contents
+raw, without quotes.
 Particle: `integrate apply_force clear_force`
 
 ## 9. Diagnostics and exit codes
@@ -85,5 +88,5 @@ Write only distinct array indices. No `break/continue/return` in lanes.
 
 ## 11. Limitations (alpha)
 
-No strings, no garbage collection, no member assignment, bytecode VM
+Strings are an immutable stub: no slicing, indexing, or formatting.
 covers the scalar core only, arrays share refernces.
