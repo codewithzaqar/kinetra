@@ -90,6 +90,8 @@ static void print_snippet(int line, int column) {
 }
 
 _Noreturn void diag_error(DiagStage stage, int line, int column, const char* message) {
+	fflush(stdout);
+
 	fprintf(stderr, "[Kinetra Error] (%s) %s\n", stage_name(stage), message);
 
 	fprintf(stderr, " --> %s:%d", g_filename, line);

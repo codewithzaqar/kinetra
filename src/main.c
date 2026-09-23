@@ -16,6 +16,7 @@ void print_usage() {
     printf("  --folds    Report how many constant folds the parser performed\n");
     printf("  --hpc      Enable hardware acceleration flags\n");
     printf("  --version  Print version\n");
+    printf("  --raw      Suppress banner/stage output (for testing)\n");
 }
 
 char* read_file(const char* path) {
@@ -225,6 +226,7 @@ int main(int argc, char** argv) {
     bool dump_tokens = false;
     bool dump_ast = false;
     bool repl = false;
+    bool raw = false;
     const char* filename = NULL;
 
     for (int i = 1; i < argc; i++) {
@@ -243,6 +245,8 @@ int main(int argc, char** argv) {
             dump_ast = true;
         } else if (strcmp(argv[i], "--repl") == 0) {
             repl = true;
+        } else if (strcmp(argv[i], "--raw") == 0) {
+            raw = true;
         } else {
             filename = argv[i];
         }
@@ -259,19 +263,20 @@ int main(int argc, char** argv) {
         return KINETRA_EXIT_USAGE;
     }
 
-    printf("--- Kinetra Compiler/Runtime v%s ---\n", KINETRA_VERSION);
-
-    init_hpc_subsystem();
+    if (!raw) {
+        printf("--- Kinetra Compiler/Runtime v%s ---\n", KINETRA_VERSION);
+        init_hpc_subsystem();
+    }
 
     // 1. Read Source Code
     char* source = read_file(filename);
     diag_set_source(filename, source);
-    printf("[1/3] Source loaded: %s\n", filename);
+    if (!raw) printf("[1/3] Source loaded: %s\n", filename);
 
     // 2. Lexical Analysis
     int token_count = 0;
     Token* tokens = lex(source, &token_count);
-    printf("[2/3] Lexing complete. Generated %d tokens.\n", token_count);
+    if (!raw) printf("[2/3] Lexing complete. Generated %d tokens.\n", token_count);
 
     if (dump_tokens) {
         for (int i = 0; i < token_count; i++) {
@@ -300,7 +305,7 @@ int main(int argc, char** argv) {
 
     // 3. Parsing
     ASTNode* ast = parse(tokens, token_count);
-    printf("[3/3] Parsing complete. AST generated.\n");
+    if (!raw) printf("[3/3] Parsing complete. AST generated.\n");
 
     if (show_folds) {
         printf("[Parser] Constant folds: %d\n", parser_fold_count());
@@ -351,13 +356,13 @@ int main(int argc, char** argv) {
 
         vm_set_quiet(false);
     } else if (use_bc) {
-        printf("\n--- Executing on Bytecode VM ---\n");
+        if (!raw) printf("\n--- Executing on Bytecode VM ---\n");
         bc_run_program(ast, false);
-        printf("\n--- Simulation Finished ---\n");
+        if (!raw) printf("\n--- Simulation Finished ---\n");
     } else {
-        printf("\n--- Executing Simulation ---\n");
+        if (!raw) printf("\n--- Executing Simulation ---\n");
         execute(ast);
-        printf("\n--- Simulation Finished ---\n");
+        if (!raw) printf("\n--- Simulation Finished ---\n");
     }
 
     // Cleanup

@@ -1,9 +1,15 @@
 # Kinetra Changelog
 
-## [0.0.1a22] - 2026-09-22
+## [0.0.1b1] - 2026-09-23
 
 ### Added
 
+- Added `--raw` output mode for diffable program output.
+- Added `tests/` regression matrix: 20 cases with expected output and
+exit-code files.
+- Added `tests/run_tests.ps1` runner and `make test` target.
+- Added `tests/generate_tests.ps1` one-shot test generator.
+- Added `docs/SPEC.md` §12 bytecode parity audit and §13 feature freeze.
 - Added immutable string value type with reference semantics.
 - Added string literals with `\`, `\\`, `\n`, `\t` escapes.
 - Added string concatenation via `+`.
@@ -196,6 +202,9 @@ logical, and unary `!` operations on literals.
 
 ### Changed
 
+- `diag_error()` flushes stdout before writing stderr for deterministic
+merged capture.
+- FEATURE FREEZE: no new syntax, types, or built-ins until v0.0.1.
 - BREAKING: `{}` blocks now introduce lexical scopes; declarations
 inside a block no longer leak out.
 - `while`/`if`/`sim` bodies now scope per execution / iteration.

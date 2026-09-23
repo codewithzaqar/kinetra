@@ -18,7 +18,10 @@ TARGET = kinetra
 
 -include $(OBJS:.o=.d)
 
-.PHONY: all clean run
+.PHONY: all clean run test
+
+test: $(TARGET)
+	powershell -NoProfile -ExecutionPolicy Bypass -File tests/run_tests.ps1
 
 all: directories $(TARGET)
 

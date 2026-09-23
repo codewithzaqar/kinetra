@@ -1,4 +1,4 @@
-# Kinetra Language Specification --- Draft (v0.0.1a22)
+# Kinetra Language Specification --- Draft (v0.0.1b1)
 
 ## 1. Overview
 
@@ -90,3 +90,26 @@ Write only distinct array indices. No `break/continue/return` in lanes.
 
 Strings are an immutable stub: no slicing, indexing, or formatting.
 covers the scalar core only, arrays share refernces.
+
+## 12. Bytecode VM parity audit (prototype, v0.0.1b1)
+
+| Construct | `--bc` support |
+|---|---|
+| number / boolean literals, variables, `let` | ✅ |
+| `+ - * /`, comparisons, `&& \|\| !` | ✅ |
+| `print`, `if/else`, `while`, `break`, `continue` | ✅ |
+| `const` | ⚠ accepted, immutability **not enforced** (party gap) |
+| vec3 / mat4 / particle / array / string | ❌ codegen error |
+| member access, indexing, index assignment | ❌ codegen error |
+| all built-in functions | ❌ codegen error |
+| user functions (`fn`) | ❌ codegen error |
+| `sim`, `step`, `parallel for` | ❌ codegen error |
+
+Unsupported constructs fail at compiler time with stage `(codegen)`,
+exit code 5.
+
+## 13. Feature freeze (v0.0.1b1)
+
+No new syntax, types, or built-ins until `v0.0.1`. Beta work is
+limited to: bug fixes, test coverage, diagnostics, documentation,
+and bytecode parity gaps explicitly listed above.
