@@ -1,4 +1,4 @@
-# Kinetra Language Specification --- Draft (v0.0.1b1)
+# Kinetra Language Specification (v0.0.1)
 
 ## 1. Overview
 
@@ -110,7 +110,7 @@ Runtime error columns: the tree-walk VM reports columns for constant
 violations and division by zero; full column migration is scheduled
 for v0.0.1rc1. Bytecode VM runtime errors remain line-only.
 
-## 13. Feature freeze (v0.0.1rc1)
+## 13. Feature freeze (v0.0.1)
 
-All runtime errors in both the tree-walk and bytecode VMs now report
-exact source columns. The language is feature-complete and frozen.
+Feature-complete. All runtime errors report exact source columns in
+both VMs. Language frozen.
