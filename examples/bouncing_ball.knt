@@ -1,0 +1,19 @@
+// A simple 1D bouncing ball under gravity
+let pos = 10.0;
+let vel = 0.0;
+let gravity = -9.8;
+let dt = 0.1;
+
+sim 30 dt 0.1 {
+	vel = vel + gravity * dt;
+	pos = pos + vel * dt;
+
+	if pos <= 0.0 {
+		pos = 0.0 - pos;
+		vel = 0.0 - vel * 0.8; // 20% energy loss on bounce
+	}
+
+	if step_index % 5 == 0.0 {
+		print pos;
+	}
+}

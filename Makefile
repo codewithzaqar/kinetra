@@ -8,6 +8,8 @@ CFLAGS += -fopenmp
 LDFLAGS += -fopenmp
 endif
 
+PREFIX ?= /usr/local
+
 SRC_DIR = src
 INC_DIR = include
 BUILD_DIR = build
@@ -41,10 +43,19 @@ run: all
 	./$(TARGET) test.knt
 
 # PowerShell host: pwsh on Linux/macOS, powershell on Windows
-PSHELL := $(shell command -v pwsh 2>/dev/null || command -v powershell 2>/dev/null || echo powershell)
+ifeq ($(OS),Windows_NT)
+PSHELL = powershell
+else
+PSHELL = $(shell command -v pwsh 2>/dev/null || echo pwsh)
+endif
 
 test: $(TARGET)
 	$(PSHELL) -NoProfile -ExecutionPolicy Bypass -File tests/run_tests.ps1
+
+install: all
+	mkdir -p $(PREFIX)/bin
+	cp $(TARGET) $(PREFIX)/bin/
+	@echo "Installed $(TARGET) to $(PREFIX)/bin/"
 
 # Auto-generated header dependencies (from -MMD -MP)
 -include $(DEPS)

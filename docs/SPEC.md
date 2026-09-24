@@ -110,8 +110,7 @@ Runtime error columns: the tree-walk VM reports columns for constant
 violations and division by zero; full column migration is scheduled
 for v0.0.1rc1. Bytecode VM runtime errors remain line-only.
 
-## 13. Feature freeze (v0.0.1b1)
+## 13. Feature freeze (v0.0.1rc1)
 
-No new syntax, types, or built-ins until `v0.0.1`. Beta work is
-limited to: bug fixes, test coverage, diagnostics, documentation,
-and bytecode parity gaps explicitly listed above.
+All runtime errors in both the tree-walk and bytecode VMs now report
+exact source columns. The language is feature-complete and frozen.

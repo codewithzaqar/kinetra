@@ -539,43 +539,30 @@ static bool is_string(KValue value) {
 // Argument Validation Helpers
 // ============================================================
 
-static double require_number_arg(KValue value, const char* fn, int line) {
+static double require_number_arg(KValue value, const char* fn, Token token) {
     if (!is_number(value)) {
         char msg[256];
         snprintf(msg, sizeof(msg), "%s() expects number arguments", fn);
-        runtime_error(msg, line);
+        runtime_error_at(msg, token);
     }
-
     return value.number;
 }
 
-static bool require_bool(KValue value, const char* context, int line) {
+static bool require_bool(KValue value, const char* context, Token token) {
     if (!is_bool(value)) {
         char msg[256];
         snprintf(msg, sizeof(msg), "%s expects a boolean", context);
-        runtime_error(msg, line);
+        runtime_error_at(msg, token);
     }
-
     return value.boolean;
 }
 
-static int require_index(KValue value, int count, int line) {
-    if (!is_number(value)) {
-        runtime_error("Array index must be a number", line);
-    }
-
+static int require_index(KValue value, int count, Token token) {
+    if (!is_number(value)) runtime_error_at("Array index must be a number", token);
     double d = value.number;
-
-    if (d != floor(d)) {
-        runtime_error("Array index must be a whole number", line);
-    }
-
+    if (d != floor(d)) runtime_error_at("Array index must be a whole number", token);
     long idx = (long)d;
-
-    if (idx < 0 || idx >= (long)count) {
-        runtime_error("Array index out of bounds", line);
-    }
-
+    if (idx < 0 || idx >= (long)count) runtime_error_at("Array index out of bounds", token);
     return (int)idx;
 }
 
@@ -615,7 +602,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 char* buf = malloc(la + lb + 1);
 
                 if (!buf) {
-                    runtime_error("Out of memory concatenating strings", op.line);
+                    runtime_error_at("Out of memory concatenating strings", op);
                 }
 
                 strcpy(buf, left.string);
@@ -628,7 +615,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return r;
             }
 
-            runtime_error("Invalid operands to '+'", op.line);
+            runtime_error_at("Invalid operands to '+'", op);
             return make_number(0.0);
         }
 
@@ -645,7 +632,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 );
             }
 
-            runtime_error("Invalid operands to '-'", op.line);
+            runtime_error_at("Invalid operands to '-'", op);
             return make_number(0.0);
         }
 
@@ -690,7 +677,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 );
             }
 
-            runtime_error("Invalid operands to '*'", op.line);
+            runtime_error_at("Invalid operands to '*'", op);
             return make_number(0.0);
         }
 
@@ -715,7 +702,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 );
             }
 
-            runtime_error("Invalid operands to '/'", op.line);
+            runtime_error_at("Invalid operands to '/'", op);
             return make_number(0.0);
         }
 
@@ -724,7 +711,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_bool(left.number < right.number);
             }
 
-            runtime_error("Invalid operands to '<'", op.line);
+            runtime_error_at("Invalid operands to '<'", op);
             return make_number(0.0);
         }
 
@@ -733,7 +720,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_bool(left.number > right.number);
             }
 
-            runtime_error("Invalid operands to '>'", op.line);
+            runtime_error_at("Invalid operands to '>'", op);
             return make_number(0.0);
         }
 
@@ -742,7 +729,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_bool(left.number <= right.number);
             }
 
-            runtime_error("Invalid operands to '<='", op.line);
+            runtime_error_at("Invalid operands to '<='", op);
             return make_number(0.0);
         }
 
@@ -751,7 +738,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_bool(left.number >= right.number);
             }
 
-            runtime_error("Invalid operands to '>='", op.line);
+            runtime_error_at("Invalid operands to '>='", op);
             return make_number(0.0);
         }
 
@@ -782,7 +769,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_bool(eq);
             }
 
-            runtime_error("Invalid operands to '=='", op.line);
+            runtime_error_at("Invalid operands to '=='", op);
             return make_number(0.0);
         }
 
@@ -813,12 +800,12 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
                 return make_bool(eq);
             }
 
-            runtime_error("Invalid operands to '!='", op.line);
+            runtime_error_at("Invalid operands to '!='", op);
             return make_number(0.0);
         }
 
         default: {
-            runtime_error("Unknown operator", op.line);
+            runtime_error_at("Unknown operator", op);
             return make_number(0.0);
         }
     }
@@ -836,7 +823,7 @@ static KValue call_user_function(ASTNode* node) {
     if (!fn) {
         char msg[256];
         snprintf(msg, sizeof(msg), "Unknown function '%s'", name);
-        runtime_error(msg, node->token.line);
+        runtime_error_at(msg, node->token);
     }
 
     int argc = node->statement_count;
@@ -852,11 +839,11 @@ static KValue call_user_function(ASTNode* node) {
             param_count,
             argc
         );
-        runtime_error(msg, node->token.line);
+        runtime_error_at(msg, node->token);
     }
 
     if (argc > MAX_CALL_ARGS) {
-        runtime_error("Too many arguments", node->token.line);
+        runtime_error_at("Too many arguments", node->token);
     }
 
     KValue arg_values[MAX_CALL_ARGS];
@@ -866,7 +853,7 @@ static KValue call_user_function(ASTNode* node) {
     }
 
     if (frame_depth >= MAX_FRAMES) {
-        runtime_error("Call stack overflow", node->token.line);
+        runtime_error_at("Call stack overflow", node->token);
     }
 
     // Push a new local frame and bind parameters
@@ -888,7 +875,7 @@ static KValue call_user_function(ASTNode* node) {
         result = return_value;
         flow_signal = K_FLOW_NORMAL;
     } else if (flow_signal != K_FLOW_NORMAL) {
-        runtime_error("break/continue outside of loop", node->token.line);
+        runtime_error_at("break/continue outside of loop", node->token);
     }
 
     frame_depth--;
@@ -916,9 +903,9 @@ static KValue evaluate(ASTNode* node) {
             KValue* value = find_variable(node->token.lexeme);
 
             if (!value) {
-                runtime_error(
+                runtime_error_at(
                     "Undefined variable",
-                    node->token.line
+                    node->token
                 );
             }
 
@@ -927,9 +914,9 @@ static KValue evaluate(ASTNode* node) {
 
         case NODE_VEC3: {
             if (!node->left || !node->right || !node->third) {
-                runtime_error(
+                runtime_error_at(
                     "Invalid vec3 constructor",
-                    node->token.line
+                    node->token
                 );
             }
 
@@ -938,9 +925,9 @@ static KValue evaluate(ASTNode* node) {
             KValue z = evaluate(node->third);
 
             if (!is_number(x) || !is_number(y) || !is_number(z)) {
-                runtime_error(
+                runtime_error_at(
                     "vec3 arguments must be numbers",
-                    node->token.line
+                    node->token
                 );
             }
 
@@ -958,7 +945,7 @@ static KValue evaluate(ASTNode* node) {
                 KValue arg = evaluate(node->statements[i]);
 
                 if (!is_number(arg)) {
-                    runtime_error("mat4 arguments must be numbers", node->token.line);
+                    runtime_error_at("mat4 arguments must be numbers", node->token);
                 }
 
                 vals[i] = arg.number;
@@ -983,12 +970,12 @@ static KValue evaluate(ASTNode* node) {
             KValue base = evaluate(node->left);
 
             if (!is_array(base)) {
-                runtime_error("Index operator expects an array", node->token.line);
+                runtime_error_at("Index operator expects an array", node->token);
             }
 
             KValue idx = evaluate(node->right);
 
-            int i = require_index(idx, base.element_count, node->token.line);
+            int i = require_index(idx, base.element_count, node->token);
 
             return base.elements[i];
         }
@@ -997,27 +984,27 @@ static KValue evaluate(ASTNode* node) {
             // Short-circuit &&
             if (node->token.type == TOKEN_AND) {
                 KValue left = evaluate(node->left);
-                bool lb = require_bool(left, "'&&'", node->token.line);
+                bool lb = require_bool(left, "'&&'", node->token);
 
                 if (!lb) {
                     return make_bool(false);
                 }
 
                 KValue right = evaluate(node->right);
-                return make_bool(require_bool(right, "'&&'", node->token.line));
+                return make_bool(require_bool(right, "'&&'", node->token));
             }
 
             // Short-circuit ||
             if (node->token.type == TOKEN_OR) {
                 KValue left = evaluate(node->left);
-                bool lb = require_bool(left, "'||'", node->token.line);
+                bool lb = require_bool(left, "'||'", node->token);
 
                 if (lb) {
                     return make_bool(true);
                 }
 
                 KValue right = evaluate(node->right);
-                return make_bool(require_bool(right, "'||'", node->token.line));
+                return make_bool(require_bool(right, "'||'", node->token));
             }
 
             KValue left = evaluate(node->left);
@@ -1029,10 +1016,10 @@ static KValue evaluate(ASTNode* node) {
         case NODE_UNARY_OP: {
             if (node->token.type == TOKEN_NOT) {
                 KValue operand = evaluate(node->left);
-                return make_bool(!require_bool(operand, "'!'", node->token.line));
+                return make_bool(!require_bool(operand, "'!'", node->token));
             }
 
-            runtime_error("Unknown unary operator", node->token.line);
+            runtime_error_at("Unknown unary operator", node->token);
             return make_number(0.0);
         }
 
@@ -1051,7 +1038,7 @@ static KValue evaluate(ASTNode* node) {
                 KValue b = evaluate(node->statements[1]);
 
                 if (!is_vec3(a) || !is_vec3(b)) {
-                    runtime_error("dot() expects vec3 arguments", node->token.line);
+                    runtime_error_at("dot() expects vec3 arguments", node->token);
                 }
 
                 return make_number(
@@ -1064,7 +1051,7 @@ static KValue evaluate(ASTNode* node) {
                 KValue b = evaluate(node->statements[1]);
 
                 if (!is_vec3(a) || !is_vec3(b)) {
-                    runtime_error("cross() expects vec3 arguments", node->token.line);
+                    runtime_error_at("cross() expects vec3 arguments", node->token);
                 }
 
                 return vec3_to_kvalue(
@@ -1076,7 +1063,7 @@ static KValue evaluate(ASTNode* node) {
                 KValue a = evaluate(node->statements[0]);
 
                 if (!is_vec3(a)) {
-                    runtime_error("length() expects a vec3 argument", node->token.line);
+                    runtime_error_at("length() expects a vec3 argument", node->token);
                 }
 
                 return make_number(vec3_length(kvalue_to_vec3(a)));
@@ -1086,14 +1073,14 @@ static KValue evaluate(ASTNode* node) {
                 KValue a = evaluate(node->statements[0]);
 
                 if (!is_vec3(a)) {
-                    runtime_error("normalize() expects a vec3 argument", node->token.line);
+                    runtime_error_at("normalize() expects a vec3 argument", node->token);
                 }
 
                 Vec3 v = kvalue_to_vec3(a);
                 double len = vec3_length(v);
 
                 if (len == 0.0) {
-                    runtime_error("normalize() of zero-length vector", node->token.line);
+                    runtime_error_at("normalize() of zero-length vector", node->token);
                 }
 
                 return vec3_to_kvalue(vec3_normalize(v));
@@ -1101,11 +1088,11 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "sqrt") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 if (a < 0.0) {
-                    runtime_error("sqrt() of negative number", node->token.line);
+                    runtime_error_at("sqrt() of negative number", node->token);
                 }
 
                 return make_number(sqrt(a));
@@ -1113,7 +1100,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "abs") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(fabs(a));
@@ -1121,10 +1108,10 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "min") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
                 double b = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
 
                 return make_number(a < b ? a : b);
@@ -1132,10 +1119,10 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "max") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
                 double b = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
 
                 return make_number(a > b ? a : b);
@@ -1143,7 +1130,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "sin") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(sin(a));
@@ -1151,7 +1138,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "cos") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(cos(a));
@@ -1159,7 +1146,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "tan") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(tan(a));
@@ -1167,13 +1154,13 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "translate") == 0) {
                 double x = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
                 double y = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
                 double z = require_number_arg(
-                    evaluate(node->statements[2]), name, node->token.line
+                    evaluate(node->statements[2]), name, node->token
                 );
 
                 return mat4_to_kvalue(mat4_translate(x, y, z));
@@ -1181,13 +1168,13 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "scale") == 0) {
                 double x = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
                 double y = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
                 double z = require_number_arg(
-                    evaluate(node->statements[2]), name, node->token.line
+                    evaluate(node->statements[2]), name, node->token
                 );
 
                 return mat4_to_kvalue(mat4_scale(x, y, z));
@@ -1196,17 +1183,17 @@ static KValue evaluate(ASTNode* node) {
             if (strcmp(name, "rotate") == 0) {
                 KValue axis = evaluate(node->statements[0]);
                 double angle = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
 
                 if (!is_vec3(axis)) {
-                    runtime_error("rotate() expects a vec3 axis", node->token.line);
+                    runtime_error_at("rotate() expects a vec3 axis", node->token);
                 }
 
                 Vec3 k = kvalue_to_vec3(axis);
 
                 if (vec3_length(k) == 0.0) {
-                    runtime_error("rotate() axis must be non-zero", node->token.line);
+                    runtime_error_at("rotate() axis must be non-zero", node->token);
                 }
 
                 return mat4_to_kvalue(mat4_rotate(k, angle));
@@ -1217,11 +1204,11 @@ static KValue evaluate(ASTNode* node) {
                 KValue v = evaluate(node->statements[1]);
 
                 if (!is_mat4(m)) {
-                    runtime_error("transform() expects a mat4 first argument", node->token.line);
+                    runtime_error_at("transform() expects a mat4 first argument", node->token);
                 }
 
                 if (!is_vec3(v)) {
-                    runtime_error("transform() expects a vec3 second argument", node->token.line);
+                    runtime_error_at("transform() expects a vec3 second argument", node->token);
                 }
 
                 return vec3_to_kvalue(
@@ -1240,7 +1227,7 @@ static KValue evaluate(ASTNode* node) {
                     return make_number((double)strlen(a.string));
                 }
                 
-                runtime_error("len() expects an array or string argument", node->token.line);
+                runtime_error_at("len() expects an array or string argument", node->token);
 
             }
 
@@ -1249,11 +1236,11 @@ static KValue evaluate(ASTNode* node) {
                 KValue f = evaluate(node->statements[1]);
 
                 if (!is_particle(p)) {
-                    runtime_error("apply_force() expects a particle", node->token.line);
+                    runtime_error_at("apply_force() expects a particle", node->token);
                 }
 
                 if (!is_vec3(f)) {
-                    runtime_error("apply_force() expects a vec3 force", node->token.line);
+                    runtime_error_at("apply_force() expects a vec3 force", node->token);
                 }
 
                 KValue r = p;
@@ -1268,7 +1255,7 @@ static KValue evaluate(ASTNode* node) {
                 KValue p = evaluate(node->statements[0]);
 
                 if (!is_particle(p)) {
-                    runtime_error("clear_force() expects a particle", node->token.line);
+                    runtime_error_at("clear_force() expects a particle", node->token);
                 }
 
                 KValue r = p;
@@ -1282,15 +1269,15 @@ static KValue evaluate(ASTNode* node) {
             if (strcmp(name, "integrate") == 0) {
                 KValue p = evaluate(node->statements[0]);
                 double dt = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
 
                 if (!is_particle(p)) {
-                    runtime_error("integrate() expects a particle", node->token.line);
+                    runtime_error_at("integrate() expects a particle", node->token);
                 }
 
                 if (p.mass == 0.0) {
-                    runtime_error("integrate() on zero-mass particle", node->token.line);
+                    runtime_error_at("integrate() on zero-mass particle", node->token);
                 }
 
                 Vec3 force = {p.fx, p.fy, p.fz};
@@ -1307,16 +1294,16 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "pow") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
                 double b = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
 
                 double r = pow(a, b);
 
                 if (isnan(r)) {
-                    runtime_error("pow() result is not a number", node->token.line);
+                    runtime_error_at("pow() result is not a number", node->token);
                 }
 
                 return make_number(r);
@@ -1324,7 +1311,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "exp") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(exp(a));
@@ -1332,11 +1319,11 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "log") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 if (a <= 0.0) {
-                    runtime_error("log() of non-positive number", node->token.line);
+                    runtime_error_at("log() of non-positive number", node->token);
                 }
 
                 return make_number(log(a));
@@ -1344,7 +1331,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "floor") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(floor(a));
@@ -1352,7 +1339,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "ceil") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(ceil(a));
@@ -1360,7 +1347,7 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "round") == 0) {
                 double a = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
 
                 return make_number(round(a));
@@ -1368,17 +1355,17 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "clamp") == 0) {
                 double x = require_number_arg(
-                    evaluate(node->statements[0]), name, node->token.line
+                    evaluate(node->statements[0]), name, node->token
                 );
                 double lo = require_number_arg(
-                    evaluate(node->statements[1]), name, node->token.line
+                    evaluate(node->statements[1]), name, node->token
                 );
                 double hi = require_number_arg(
-                    evaluate(node->statements[2]), name, node->token.line
+                    evaluate(node->statements[2]), name, node->token
                 );
 
                 if (lo > hi) {
-                    runtime_error("clamp() requires lo <= hi", node->token.line);
+                    runtime_error_at("clamp() requires lo <= hi", node->token);
                 }
 
                 if (x < lo) return make_number(lo);
@@ -1391,7 +1378,7 @@ static KValue evaluate(ASTNode* node) {
                 KValue a = evaluate(node->statements[0]);
                 KValue b = evaluate(node->statements[1]);
                 double t = require_number_arg(
-                    evaluate(node->statements[2]), name, node->token.line
+                    evaluate(node->statements[2]), name, node->token
                 );
 
                 if (is_number(a) && is_number(b)) {
@@ -1406,9 +1393,9 @@ static KValue evaluate(ASTNode* node) {
                     );
                 }
 
-                runtime_error(
+                runtime_error_at(
                     "lerp() expects matching number or vec3 arguments",
-                    node->token.line
+                    node->token
                 );
 
                 return make_number(0.0);
@@ -1419,14 +1406,14 @@ static KValue evaluate(ASTNode* node) {
                 KValue n = evaluate(node->statements[1]);
 
                 if (!is_vec3(v) || !is_vec3(n)) {
-                    runtime_error("reflect() expects vec3 arguments", node->token.line);
+                    runtime_error_at("reflect() expects vec3 arguments", node->token);
                 }
 
                 Vec3 vv = kvalue_to_vec3(v);
                 Vec3 nn = kvalue_to_vec3(n);
 
                 if (vec3_length(nn) == 0.0) {
-                    runtime_error("reflect() normal must be non-zero", node->token.line);
+                    runtime_error_at("reflect() normal must be non-zero", node->token);
                 }
 
                 double d = vec3_dot(vv, nn);
@@ -1436,7 +1423,7 @@ static KValue evaluate(ASTNode* node) {
                 return vec3_to_kvalue(r);
             }
 
-            runtime_error("Unknown built-in function", node->token.line);
+            runtime_error_at("Unknown built-in function", node->token);
             return make_number(0.0);
         }
 
@@ -1492,16 +1479,16 @@ static KValue evaluate(ASTNode* node) {
                 KValue m = evaluate(node->statements[2]);
 
                 if (!is_number(m)) {
-                    runtime_error("particle mass must be a number", node->token.line);
+                    runtime_error_at("particle mass must be a number", node->token);
                 }
 
                 mass = m.number;
             }
 
             if (!is_vec3(p0) || !is_vec3(v0)) {
-                runtime_error(
+                runtime_error_at(
                     "particle() expects vec3 position and velocity",
-                    node->token.line
+                    node->token
                 );
             }
 
@@ -1517,7 +1504,7 @@ static KValue evaluate(ASTNode* node) {
                 if (strcmp(member, "y") == 0) return make_number(base.y);
                 if (strcmp(member, "z") == 0) return make_number(base.z);
 
-                runtime_error("Unknown vec3 member", node->token.line);
+                runtime_error_at("Unknown vec3 member", node->token);
             }
 
             if (is_particle(base)) {
@@ -1537,12 +1524,12 @@ static KValue evaluate(ASTNode* node) {
                     return make_number(base.mass);
                 }
 
-                runtime_error("Unknown particle member", node->token.line);
+                runtime_error_at("Unknown particle member", node->token);
             }
 
-            runtime_error(
+            runtime_error_at(
                 "Member access expects vec3 or particle",
-                node->token.line
+                node->token
             );
 
             return make_number(0.0);
@@ -1571,9 +1558,9 @@ static void execute_sim(ASTNode* node) {
         KValue count_value = evaluate(node->left);
 
         if (!is_number(count_value)) {
-            runtime_error(
+            runtime_error_at(
                 "sim step count must be a number",
-                node->token.line
+                node->token
             );
         }
 
@@ -1590,9 +1577,9 @@ static void execute_sim(ASTNode* node) {
                 KValue count_value = evaluate(stmt->left);
 
                 if (!is_number(count_value)) {
-                    runtime_error(
+                    runtime_error_at(
                         "step count must be a number",
-                        stmt->token.line
+                        stmt->token
                     );
                 }
 
@@ -1615,7 +1602,7 @@ static void execute_sim(ASTNode* node) {
         KValue dt_val = evaluate(node->right);
 
         if (!is_number(dt_val)) {
-            runtime_error("sim dt value must be a number", node->token.line);
+            runtime_error_at("sim dt value must be a number", node->token);
         }
 
         dt_value = dt_val.number;
@@ -1667,7 +1654,7 @@ static void execute_sim(ASTNode* node) {
 static void execute_while(ASTNode* node) {
     for (;;) {
         KValue cond = evaluate(node->left);
-        bool keep = require_bool(cond, "while condition", node->token.line);
+        bool keep = require_bool(cond, "while condition", node->token);
 
         if (!keep) {
             break;
@@ -1724,22 +1711,22 @@ static void execute_statement(ASTNode* node) {
             KValue* base = find_variable(node->token.lexeme);
 
             if (!base) {
-                runtime_error("Undefined variable", node->token.line);
+                runtime_error_at("Undefined variable", node->token);
             }
 
             if (!is_array(*base)) {
-                runtime_error("Index assignment expects an array", node->token.line);
+                runtime_error_at("Index assignment expects an array", node->token);
             }
 
             if (variable_is_const(node->token.lexeme)) {
                 char msg[300];
                 snprintf(msg, sizeof(msg), "Cannot modify constant '%s'", node->token.lexeme);
-                runtime_error(msg, node->token.line);
+                runtime_error_at(msg, node->token);
             }
 
             KValue idx = evaluate(node->left);
 
-            int i = require_index(idx, base->element_count, node->token.line);
+            int i = require_index(idx, base->element_count, node->token);
 
             base->elements[i] = evaluate(node->right);
             break;
@@ -1757,7 +1744,7 @@ static void execute_statement(ASTNode* node) {
 
         case NODE_IF: {
             KValue cond = evaluate(node->left);
-            bool take_then = require_bool(cond, "if condition", node->token.line);
+            bool take_then = require_bool(cond, "if condition", node->token);
 
             if (take_then) {
                 execute_statement(node->right);
@@ -1816,7 +1803,7 @@ static void execute_statement(ASTNode* node) {
             KValue count_value = evaluate(node->left);
 
             if (!is_number(count_value)) {
-                runtime_error("parallel for count must be a number", node->token.line);
+                runtime_error_at("parallel for count must be a number", node->token);
             }
 
             long n = (long)count_value.number;
@@ -1889,16 +1876,16 @@ void execute(ASTNode* ast) {
         execute_statement(ast->statements[i]);
 
         if (flow_signal == K_FLOW_RETURN) {
-            runtime_error(
+            runtime_error_at(
                 "return outside of function",
-                ast->statements[i]->token.line
+                ast->statements[i]->token
             );
         }
 
         if (flow_signal != K_FLOW_NORMAL) {
-            runtime_error(
+            runtime_error_at(
                 "break/continue outside of loop",
-                ast->statements[i]->token.line
+                ast->statements[i]->token
             );
         }
     }

@@ -51,6 +51,7 @@ typedef enum {
 typedef struct {
     uint8_t code[BC_CODE_CAP];
     int lines[BC_CODE_CAP];
+    int cols[BC_CODE_CAP];
     int count;
 
     KValue consts[BC_MAX_CONSTS];
@@ -80,12 +81,12 @@ static LoopCtx* current_loop = NULL;
 // Errors and Value Helpers
 // ============================================================
 
-static _Noreturn void codegen_error(int line, const char* msg) {
-    diag_error(DIAG_CODEGEN, line, 0, msg);
+static _Noreturn void codegen_error(Token token, const char* msg) {
+    diag_error(DIAG_CODEGEN, token.line, token.column, msg);
 }
 
-static _Noreturn void bc_runtime_error(int line, const char* msg) {
-    diag_error(DIAG_RUNTIME, line, 0, msg);
+static _Noreturn void bc_runtime_error(int ip, const char* msg) {
+    diag_error(DIAG_RUNTIME, chunk.lines[ip], chunk.cols[ip], msg);
 }
 
 static KValue bc_number(double value) {
@@ -117,29 +118,25 @@ static KValue bc_bool(bool value) {
 // Emission Helpers
 // ============================================================
 
-static void emit_byte(uint8_t v, int line) {
-    if (chunk.count >= BC_CODE_CAP) {
-        codegen_error(line, "program too large for prototype bytecode VM");
-    }
-
+static void emit_byte(uint8_t v, Token token) {
+    if (chunk.count >= BC_CODE_CAP) codegen_error(token, "program too large");
     chunk.code[chunk.count] = v;
-    chunk.lines[chunk.count] = line;
+    chunk.lines[chunk.count] = token.line;
+    chunk.cols[chunk.count] = token.column;
     chunk.count++;
 }
 
-static void emit_op(uint8_t op, int line) {
-    emit_byte(op, line);
+static void emit_op(uint8_t op, Token token) { emit_byte(op, token); }
+
+static void emit_u16(uint16_t v, Token token) {
+    emit_byte((uint8_t)(v & 0xFF), token);
+    emit_byte((uint8_t)((v >> 8) & 0xFF), token);
 }
 
-static void emit_u16(uint16_t v, int line) {
-    emit_byte((uint8_t)(v & 0xFF), line);
-    emit_byte((uint8_t)((v >> 8) & 0xFF), line);
-}
-
-static int emit_jump(uint8_t op, int line) {
-    emit_op(op, line);
+static int emit_jump(uint8_t op, Token token) {
+    emit_op(op, token);
     int pos = chunk.count;
-    emit_u16(0, line);
+    emit_u16(0, token);
     return pos;
 }
 
@@ -152,21 +149,21 @@ static void patch_jump(int pos) {
     patch_to(pos, chunk.count);
 }
 
-static void emit_loop(int target, int line) {
-    emit_op(OP_LOOP, line);
-    emit_u16((uint16_t)target, line);
+static void emit_loop(int target, Token token) {
+    emit_op(OP_LOOP, token);
+    emit_u16((uint16_t)target, token);
 }
 
-static int add_const(KValue v, int line) {
+static int add_const(KValue v, Token token) {
     if (chunk.const_count >= BC_MAX_CONSTS) {
-        codegen_error(line, "too many constants for prototype bytecode VM");
+        codegen_error(token, "too many constants for prototype bytecode VM");
     }
 
     chunk.consts[chunk.const_count] = v;
     return chunk.const_count++;
 }
 
-static int intern_name(const char* name, int line) {
+static int intern_name(const char* name, Token token) {
     for (int i = 0; i < chunk.name_count; i++) {
         if (strcmp(chunk.names[i], name) == 0) {
             return i;
@@ -174,12 +171,11 @@ static int intern_name(const char* name, int line) {
     }
 
     if (chunk.name_count >= BC_MAX_NAMES) {
-        codegen_error(line, "too many names for prototype bytecode VM");
+        codegen_error(token, "too many names for prototype bytecode VM");
     }
 
     strncpy(chunk.names[chunk.name_count], name, 255);
     chunk.names[chunk.name_count][255] = '\0';
-
     return chunk.name_count++;
 }
 
@@ -191,7 +187,7 @@ static void compile_expression(ASTNode* node);
 static void compile_statement(ASTNode* node);
 
 static void compile_expression(ASTNode* node) {
-    int line = node->token.line;
+    Token line = node->token;
 
     switch (node->type) {
         case NODE_NUMBER_LITERAL: {
@@ -271,7 +267,7 @@ static void compile_expression(ASTNode* node) {
 }
 
 static void compile_statement(ASTNode* node) {
-    int line = node->token.line;
+    Token line = node->token;
 
     switch (node->type) {
         case NODE_PRINT: {
@@ -421,7 +417,7 @@ static KValue* bc_find(const char* name) {
     return NULL;
 }
 
-static void bc_define(const char* name, KValue value, bool is_const_decl, int line) {
+static void bc_define(const char* name, KValue value, bool is_const_decl, int ip) {
     KValue* existing = bc_find(name);
 
     if (existing) {
@@ -444,7 +440,7 @@ static void bc_define(const char* name, KValue value, bool is_const_decl, int li
                     : "Cannot assign to constant '%s'",
                 name
             );
-            bc_runtime_error(line, msg);
+            bc_runtime_error(ip, msg);
         }
 
         *existing = value;
@@ -452,7 +448,7 @@ static void bc_define(const char* name, KValue value, bool is_const_decl, int li
     }
 
     if (bc_global_count >= BC_MAX_GLOBALS) {
-        bc_runtime_error(line, "bytecode VM variable limit reached");
+        bc_runtime_error(ip, "bytecode VM variable limit reached");
     }
 
     strncpy(bc_globals[bc_global_count].name, name, 255);
@@ -462,12 +458,12 @@ static void bc_define(const char* name, KValue value, bool is_const_decl, int li
     bc_global_count++;
 }
 
-static bool bc_truthy(KValue v, int line) {
+static bool bc_truthy(KValue v, int ip) {
     if (v.type == K_VALUE_BOOL) {
         return v.boolean;
     }
 
-    bc_runtime_error(line, "condition must be a boolean");
+    bc_runtime_error(ip, "condition must be a boolean");
     return false;
 }
 
@@ -494,7 +490,7 @@ static void bc_exec(bool quiet) {
                 uint8_t idx = chunk.code[ip++];
 
                 if (sp >= BC_STACK_MAX) {
-                    bc_runtime_error(line, "bytecode stack overflow");
+                    bc_runtime_error(ip, "bytecode stack overflow");
                 }
 
                 stack[sp++] = chunk.consts[idx];
@@ -522,11 +518,11 @@ static void bc_exec(bool quiet) {
                 KValue* g = bc_find(chunk.names[nidx]);
 
                 if (!g) {
-                    bc_runtime_error(line, "Undefined variable");
+                    bc_runtime_error(ip, "Undefined variable");
                 }
 
                 if (sp >= BC_STACK_MAX) {
-                    bc_runtime_error(line, "bytecode stack overflow");
+                    bc_runtime_error(ip, "bytecode stack overflow");
                 }
 
                 stack[sp++] = *g;
@@ -537,14 +533,14 @@ static void bc_exec(bool quiet) {
                 case OP_SET_GLOBAL: {
                     uint8_t nidx = chunk.code[ip++];
                     KValue v = stack[--sp];
-                    bc_define(chunk.names[nidx], v, false, line);
+                    bc_define(chunk.names[nidx], v, false, ip);
                     break;
                 }
 
                 case OP_DEFINE_CONST: {
                     uint8_t nidx = chunk.code[ip++];
                     KValue v = stack[--sp];
-                    bc_define(chunk.names[nidx], v, true, line);
+                    bc_define(chunk.names[nidx], v, true, ip);
                     break;
                 } 
 
@@ -556,7 +552,7 @@ static void bc_exec(bool quiet) {
                 KValue a = stack[--sp];
 
                 if (a.type != K_VALUE_NUMBER || b.type != K_VALUE_NUMBER) {
-                    bc_runtime_error(line, "bytecode VM arithmetic expects numbers");
+                    bc_runtime_error(ip, "bytecode VM arithmetic expects numbers");
                 }
 
                 double r = 0.0;
@@ -566,7 +562,7 @@ static void bc_exec(bool quiet) {
                 else if (op == OP_MUL) r = a.number * b.number;
                 else {
                     if (b.number == 0.0) {
-                        bc_runtime_error(line, "Division by zero");
+                        bc_runtime_error(ip, "Division by zero");
                     }
                     r = a.number / b.number;
                 }
@@ -583,7 +579,7 @@ static void bc_exec(bool quiet) {
                 KValue a = stack[--sp];
 
                 if (a.type != K_VALUE_NUMBER || b.type != K_VALUE_NUMBER) {
-                    bc_runtime_error(line, "bytecode VM comparison expects numbers");
+                    bc_runtime_error(ip, "bytecode VM comparison expects numbers");
                 }
 
                 bool r = false;
@@ -603,14 +599,14 @@ static void bc_exec(bool quiet) {
                 KValue a = stack[--sp];
 
                 if (a.type != b.type) {
-                    bc_runtime_error(line, "bytecode VM equality expects matching types");
+                    bc_runtime_error(ip, "bytecode VM equality expects matching types");
                 }
 
                 bool eq = false;
 
                 if (a.type == K_VALUE_NUMBER) eq = a.number == b.number;
                 else if (a.type == K_VALUE_BOOL) eq = a.boolean == b.boolean;
-                else bc_runtime_error(line, "bytecode VM equality expects numbers or booleans");
+                else bc_runtime_error(ip, "bytecode VM equality expects numbers or booleans");
 
                 if (op == OP_NE) eq = !eq;
 
@@ -622,7 +618,7 @@ static void bc_exec(bool quiet) {
                 KValue v = stack[--sp];
 
                 if (v.type != K_VALUE_BOOL) {
-                    bc_runtime_error(line, "'!' expects a boolean");
+                    bc_runtime_error(ip, "'!' expects a boolean");
                 }
 
                 stack[sp++] = bc_bool(!v.boolean);
@@ -642,7 +638,7 @@ static void bc_exec(bool quiet) {
 
                 KValue v = stack[--sp];
 
-                if (!bc_truthy(v, line)) {
+                if (!bc_truthy(v, ip)) {
                     ip = t;
                 }
 
@@ -655,7 +651,7 @@ static void bc_exec(bool quiet) {
 
                 KValue v = stack[sp - 1];
 
-                if (!bc_truthy(v, line)) {
+                if (!bc_truthy(v, ip)) {
                     ip = t;      // keep the false value as the result
                 } else {
                     sp--;        // discard and evaluate the right side
@@ -687,7 +683,7 @@ static void bc_exec(bool quiet) {
             }
 
             default:
-                bc_runtime_error(line, "unknown bytecode opcode");
+                bc_runtime_error(ip, "unknown bytecode opcode");
         }
     }
 }
@@ -710,7 +706,8 @@ void bc_run_program(ASTNode* ast, bool quiet) {
         compile_statement(ast->statements[i]);
     }
 
-    emit_op(OP_HALT, 0);
+    Token halt_tok = { TOKEN_EOF, "", 0.0, 0, 0 };
+    emit_op(OP_HALT, halt_tok);
 
     bc_exec(quiet);
 }

@@ -1,0 +1,10 @@
+// Transform a point through a scale-rotate-translate pipeline
+let p = vec3(1.0, 0.0, 0.0);
+
+let scale_m = scale(2.0, 2.0, 2.0);
+let rot_m = rotate(vec3(0.0, 0.0, 1.0), 1.570796); // 90 degress
+let trans_m = translate(10.0, 5.0, 0.0);
+
+let model = trans_m * rot_m * scale_m;
+
+print transform(model, p);

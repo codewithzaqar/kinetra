@@ -15,8 +15,10 @@ void print_usage() {
     printf("  --repl     Start an interactive REPL\n");
     printf("  --folds    Report how many constant folds the parser performed\n");
     printf("  --hpc      Enable hardware acceleration flags\n");
-    printf("  --version  Print version\n");
     printf("  --raw      Suppress banner/stage output (for testing)\n");
+    printf("  --version  Print version\n");
+    printf("  --help     Show this help messgae\n\n");
+    printf("Exit codes: 0=ok, 1=lex, 2=parse, 3=runtime, 4=io, 5=codegen, 64=usage\n");
 }
 
 char* read_file(const char* path) {
@@ -247,6 +249,9 @@ int main(int argc, char** argv) {
             repl = true;
         } else if (strcmp(argv[i], "--raw") == 0) {
             raw = true;
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            print_usage();
+            return KINETRA_EXIT_OK;
         } else {
             filename = argv[i];
         }
