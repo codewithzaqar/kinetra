@@ -8,31 +8,40 @@ function Normalize([string]$text) {
 }
 
 function Run-Case([string]$rel, [string[]]$extraArgs, [string]$expected, [int]$wantCode) {
-    $tmp = Join-Path $env:TEMP ("kinetra_out_" + [guid]::NewGuid().ToString("n") + ".txt")
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) `
+    	("kinetra_out_" + [guid]::NewGuid().ToString("n") + ".txt")
 
-    cmd /c "`"./kinetra`" $($extraArgs -join ' ') --raw $rel > `"$tmp`" 2>&1"
+    $argsJoined = ($extraArgs -join '')
+    $isWin = [System.IO.Path]::DirectorySeparatorChar -eq '\'
+
+    if ($isWin) {
+    	cmd /c "`" ./kinetra`" $argsJoined --raw $rel > `"$tmp`" 2>&1"
+    } else {
+    	sh -c "./kinetra $argsJoined --raw $rel > `"$tmp`" 2>&1"
+    }
+
     $gotCode = $LASTEXITCODE
 
     $out = ""
     if (Test-Path $tmp) {
-        $out = Get-Content $tmp -Raw
-        Remove-Item $tmp -ErrorAction SilentlyContinue
+    	$out = Get-Content $tmp -Raw
+    	Remove-Item $tmp -ErrorAction SilentlyContinue
     }
 
     if ($gotCode -ne $wantCode) {
-        Write-Host "  FAIL(exit) $rel : expected exit $wantCode, got $gotCode"
-        return $false
+    	Write-Host " FAIL(exit) $rel : expected exit $wantCode, got $gotCode"
+    	return $false
     }
 
     $actual = Normalize $out
 
     if ($actual -ne $expected) {
-        Write-Host "  FAIL(diff) $rel $($extraArgs -join ' ')"
-        Write-Host "--- expected ---"
-        Write-Host $expected
-        Write-Host "--- actual ---"
-        Write-Host $actual
-        return $false
+    	Write-Host " FAIL(diff) $rel $($extraArgs -join '')"
+    	Write-Host "--- expected ---"
+    	Write-Host $expected
+    	Write-Host "--- actual ---"
+    	Write-Host $actual
+    	return $false
     }
 
     return $true

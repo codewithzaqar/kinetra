@@ -40,8 +40,11 @@ clean:
 run: all
 	./$(TARGET) test.knt
 
+# PowerShell host: pwsh on Linux/macOS, powershell on Windows
+PSHELL := $(shell command -v pwsh 2>/dev/null || command -v powershell 2>/dev/null || echo powershell)
+
 test: $(TARGET)
-	powershell -NoProfile -ExecutionPolicy Bypass -File tests/run_tests.ps1
+	$(PSHELL) -NoProfile -ExecutionPolicy Bypass -File tests/run_tests.ps1
 
 # Auto-generated header dependencies (from -MMD -MP)
 -include $(DEPS)
