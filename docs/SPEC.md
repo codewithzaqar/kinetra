@@ -104,9 +104,11 @@ covers the scalar core only, arrays share refernces.
 | all built-in functions | ❌ codegen error |
 | user functions (`fn`) | ❌ codegen error |
 | `sim`, `step`, `parallel for` | ❌ codegen error |
+| `const` | ✅ enforced (since v0.0.1b2) |
 
-Unsupported constructs fail at compiler time with stage `(codegen)`,
-exit code 5.
+Runtime error columns: the tree-walk VM reports columns for constant
+violations and division by zero; full column migration is scheduled
+for v0.0.1rc1. Bytecode VM runtime errors remain line-only.
 
 ## 13. Feature freeze (v0.0.1b1)
 

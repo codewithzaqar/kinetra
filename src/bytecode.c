@@ -25,6 +25,7 @@ typedef enum {
     OP_GET_GLOBAL,
     OP_SET_GLOBAL,
     OP_DEFINE_GLOBAL,
+    OP_DEFINE_CONST,
     OP_ADD,
     OP_SUB,
     OP_MUL,
@@ -385,6 +386,13 @@ static void compile_statement(ASTNode* node) {
             break;
         }
 
+        case NODE_CONST: {
+            compile_expression(node->left);
+            emit_op(OP_DEFINE_CONST, line);
+            emit_byte((uint8_t)intern_name(node->token.lexeme, line), line);
+            break;
+        }
+
         default:
             codegen_error(line, "bytecode VM does not support this statement yet");
     }
@@ -397,6 +405,7 @@ static void compile_statement(ASTNode* node) {
 typedef struct {
     char name[256];
     KValue value;
+    bool is_const;
 } BcGlobal;
 
 static BcGlobal bc_globals[BC_MAX_GLOBALS];
@@ -412,10 +421,32 @@ static KValue* bc_find(const char* name) {
     return NULL;
 }
 
-static void bc_set(const char* name, KValue value, int line) {
+static void bc_define(const char* name, KValue value, bool is_const_decl, int line) {
     KValue* existing = bc_find(name);
 
     if (existing) {
+        int idx = -1;
+
+        for (int i = 0; i < bc_global_count; i++) {
+            if (strcmp(bc_globals[i].name, name) == 0) {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx >= 0 && bc_globals[idx].is_const) {
+            char msg[300];
+            snprintf(
+                msg,
+                sizeof(msg),
+                is_const_decl
+                    ? "Cannot redeclare constant '%s'"
+                    : "Cannot assign to constant '%s'",
+                name
+            );
+            bc_runtime_error(line, msg);
+        }
+
         *existing = value;
         return;
     }
@@ -427,6 +458,7 @@ static void bc_set(const char* name, KValue value, int line) {
     strncpy(bc_globals[bc_global_count].name, name, 255);
     bc_globals[bc_global_count].name[255] = '\0';
     bc_globals[bc_global_count].value = value;
+    bc_globals[bc_global_count].is_const = is_const_decl;
     bc_global_count++;
 }
 
@@ -502,12 +534,19 @@ static void bc_exec(bool quiet) {
             }
 
             case OP_DEFINE_GLOBAL:
-            case OP_SET_GLOBAL: {
-                uint8_t nidx = chunk.code[ip++];
-                KValue v = stack[--sp];
-                bc_set(chunk.names[nidx], v, line);
-                break;
-            }
+                case OP_SET_GLOBAL: {
+                    uint8_t nidx = chunk.code[ip++];
+                    KValue v = stack[--sp];
+                    bc_define(chunk.names[nidx], v, false, line);
+                    break;
+                }
+
+                case OP_DEFINE_CONST: {
+                    uint8_t nidx = chunk.code[ip++];
+                    KValue v = stack[--sp];
+                    bc_define(chunk.names[nidx], v, true, line);
+                    break;
+                } 
 
             case OP_ADD:
             case OP_SUB:

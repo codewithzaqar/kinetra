@@ -67,6 +67,10 @@ static void runtime_error(const char* message, int line) {
     diag_error(DIAG_RUNTIME, line, 0, message);
 }
 
+static void runtime_error_at(const char* message, Token token) {
+    diag_error(DIAG_RUNTIME, token.line, token.column, message);
+}
+
 // ============================================================
 // Value Constructors and Type Checks
 // ============================================================
@@ -325,14 +329,14 @@ static void define_in_current_scope(const char* name, KValue value, bool is_cons
     variable_count++;
 }
 
-static void set_variable(const char* name, KValue value, int line) {
+static void set_variable(const char* name, KValue value, Token token) {
     for (int f = frame_depth - 1; f >= 0; f--) {
         for (int i = 0; i < frames[f].count; i++) {
             if (strcmp(frames[f].names[i], name) == 0) {
                 if (frames[f].consts[i]) {
                     char msg[300];
                     snprintf(msg, sizeof(msg), "Cannot assign to constant '%s'", name);
-                    runtime_error(msg, line);
+                    runtime_error_at(msg, token);
                 }
 
                 frames[f].values[i] = value;
@@ -346,7 +350,7 @@ static void set_variable(const char* name, KValue value, int line) {
             if (variables[i].is_const) {
                 char msg[300];
                 snprintf(msg, sizeof(msg), "Cannot assign to constant '%s'", name);
-                runtime_error(msg, line);
+                runtime_error_at(msg, token);
             }
 
             variables[i].value = value;
@@ -357,8 +361,8 @@ static void set_variable(const char* name, KValue value, int line) {
     define_in_current_scope(name, value, false);
 }
 
-static void set_variable_number(const char* name, double value, int line) {
-    set_variable(name, make_number(value), line);
+static void set_variable_number(const char* name, double value, Token token) {
+    set_variable(name, make_number(value), token);
 }
 
 static bool variable_is_const(const char* name) {
@@ -693,7 +697,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
         case TOKEN_OP_DIV: {
             if (is_number(left) && is_number(right)) {
                 if (right.number == 0.0) {
-                    runtime_error("Division by zero", op.line);
+                    runtime_error_at("Division by zero", op);
                 }
 
                 return make_number(left.number / right.number);
@@ -701,7 +705,7 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
 
             if (is_vec3(left) && is_number(right)) {
                 if (right.number == 0.0) {
-                    runtime_error("Division by zero", op.line);
+                    runtime_error_at("Division by zero", op);
                 }
 
                 return make_vec3(
@@ -1625,8 +1629,8 @@ static void execute_sim(ASTNode* node) {
     for (long i = 0; i < steps; i++) {
         push_frame();
 
-        set_variable_number("step_index", (double)i, node->token.line);
-        set_variable_number("dt", dt_value, node->token.line);
+        set_variable_number("step_index", (double)i, node->token);
+        set_variable_number("dt", dt_value, node->token);
 
         for (int j = 0; j < node->statement_count; j++) {
             ASTNode* stmt = node->statements[j];
@@ -1712,7 +1716,7 @@ static void execute_statement(ASTNode* node) {
 
         case NODE_ASSIGN: {
             KValue value = evaluate(node->left);
-            set_variable(node->token.lexeme, value, node->token.line);
+            set_variable(node->token.lexeme, value, node->token);
             break;
         }
 

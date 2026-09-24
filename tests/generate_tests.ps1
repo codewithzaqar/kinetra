@@ -5,6 +5,10 @@ function W([string]$name, [string]$content) {
 	Set-Content -Path $name -Value $content -NoNewline -Encoding ASCII
 }
 
+foreach ($m in @("02_arith", "03_vars", "04_control", "05_while", "08_const")) {
+	Set-Content -Path "$m.bctest" -Value "" -NoNewline
+}
+
 # -------- 01 hello ---------
 W "01_hello.knt" @'
 print "Hello, Kinetra!";
@@ -124,6 +128,7 @@ W "09_const_bad.expected" @'
 [Kinetra Error] (runtime) Cannot assign to constant 'limit'
 	--> tests/09_const_bad.knt:2
 		2 | limit = 2.0;
+		 | ^
 '@
 W "09_const_bad.code" "3"
 
@@ -278,6 +283,7 @@ W "20_runtime_bad.expected" @'
 [Kinetra Error] (runtime) Division by zero
 	--> tests/20_runtime_bad.knt:1
 		1 | print 1.0 / 0.0;
+		|        ^
 '@
 W "20_runtime_bad.code" "3"
 

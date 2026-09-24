@@ -12,27 +12,26 @@ SRC_DIR = src
 INC_DIR = include
 BUILD_DIR = build
 
-SRCS = $(SRC_DIR)/main.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/vm.c $(SRC_DIR)/hpc_math.c $(SRC_DIR)/diagnostics.c $(SRC_DIR)/bytecode.c
+SRCS = $(SRC_DIR)/main.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/vm.c \
+	$(SRC_DIR)/hpc_math.c $(SRC_DIR)/diagnostics.c $(SRC_DIR)/bytecode.c
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
+DEPS = $(OBJS:.o=.d)
 TARGET = kinetra
-
--include $(OBJS:.o=.d)
 
 .PHONY: all clean run test
 
-test: $(TARGET)
-	powershell -NoProfile -ExecutionPolicy Bypass -File tests/run_tests.ps1
+all: $(TARGET)
 
-all: directories $(TARGET)
-
-directories:
+# Directory rule; order-only prerequisite (| below) guarantees it exists
+$(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
-	@echo "Kinetra v0.0.1a01 built successfully."
+	@echo "Kinetra built successfully."
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+# | $(BUILD_DIR) = create dir first, but don't rebuild objects when dir mtime changes
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
@@ -40,3 +39,9 @@ clean:
 
 run: all
 	./$(TARGET) test.knt
+
+test: $(TARGET)
+	powershell -NoProfile -ExecutionPolicy Bypass -File tests/run_tests.ps1
+
+# Auto-generated header dependencies (from -MMD -MP)
+-include $(DEPS)

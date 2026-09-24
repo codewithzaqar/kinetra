@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: make
+
+      - name: Regression suite
+        run: make test
+
+      - name: Bytecode smoke
+        run: ./kinetra --bc bc.knt
+
+      - name: Bench smoke
+        run: ./kinetra --bench bc.knt

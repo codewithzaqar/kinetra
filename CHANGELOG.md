@@ -1,9 +1,16 @@
 # Kinetra Changelog
 
-## [0.0.1b1] - 2026-09-23
+## [0.0.1b2] - 2026-09-24
 
 ### Added
 
+- Added `OP_DEFINE_CONST` and const-flagged bytecode globals; `--bc`
+now enforces const assignment and redeclaration.
+- Added bytecode parity passes to the test runner (`*.bctest` markers).
+- Added GitHub Actions CI for Linux and macOS.
+- Added `tools/bench.ps1` VM comparison bench and `docs/BENCH.md`,
+- Added `runtime_error_at()`; constant violation and division by zero
+now render carets.
 - Added `--raw` output mode for diffable program output.
 - Added `tests/` regression matrix: 20 cases with expected output and
 exit-code files.
@@ -202,6 +209,8 @@ logical, and unary `!` operations on literals.
 
 ### Changed
 
+- `set_variable()` / `set_variable_number()` now take a `Token`.
+- `docs/SPEC.md` §12 parity table updated.
 - `diag_error()` flushes stdout before writing stderr for deterministic
 merged capture.
 - FEATURE FREEZE: no new syntax, types, or built-ins until v0.0.1.
@@ -246,6 +255,11 @@ inside a block no longer leak out.
 - Parser now parses a statement instead of only a raw expression.
 - VM now executes `print` statements directly.
 - Improved repository structure and release hygiene.
+
+### Scheduled for rc1
+
+- Migrate remaining runtime errors to column reporting.
+- Bytecode VM column tracking.
 
 ### Roadmap Adjustment
 
