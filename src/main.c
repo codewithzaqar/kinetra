@@ -2,6 +2,7 @@
 #include "../include/hpc_math.h"
 #include "../include/diagnostics.h"
 #include "../include/bytecode.h"
+#include "../include/gc.h"
 #include <time.h>
 
 void print_usage() {
@@ -271,6 +272,7 @@ int main(int argc, char** argv) {
     if (!raw) {
         printf("--- Kinetra Compiler/Runtime v%s ---\n", KINETRA_VERSION);
         init_hpc_subsystem();
+        gc_init();
     }
 
     // 1. Read Source Code
@@ -374,6 +376,8 @@ int main(int argc, char** argv) {
     free_ast(ast);
     free(tokens);
     free(source);
+
+    gc_free_all();
 
     return KINETRA_EXIT_OK;
 }

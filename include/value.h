@@ -2,6 +2,9 @@
 #define KINETRA_VALUE_H
 
 #include <stdbool.h>
+#include <stddef.h>
+
+typedef struct Obj Obj; // Forward declaration
 
 typedef enum {
 	K_VALUE_NUMBER,
@@ -28,23 +31,13 @@ struct KValue {
 
 	double m[16];
 
-	KValue* elements;
-	int element_count;
-	char* string;
-
-	double px;
-	double py;
-	double pz;
-
-	double vx;
-	double vy;
-	double vz;
-
-	double fx;
-	double fy;
-	double fz;
-
+	double px, py, pz;
+	double vx, vy, vz;
+	double fx, fy, fz;
 	double mass;
+
+	// Heap allocated objects (Arrays, Strings)
+	Obj* heap;
 };
 
 #endif

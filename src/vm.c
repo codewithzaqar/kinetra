@@ -2,6 +2,7 @@
 #include "../include/hpc_math.h"
 #include "../include/diagnostics.h"
 #include "../include/value.h"
+#include "../include/gc.h"
 #include <math.h>
 
 // ============================================================
@@ -104,9 +105,7 @@ static KValue make_number(double value) {
 
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
-    v.elements = NULL;
-    v.string = NULL;
-    v.element_count = 0;
+    v.heap = NULL;
 
     return v;
 }
@@ -122,8 +121,7 @@ static KValue make_particle(Vec3 pos, Vec3 vel, double mass) {
 
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
-    v.elements = NULL;
-    v.element_count = 0;
+    v.heap = NULL;
 
     v.px = pos.x; v.py = pos.y; v.pz = pos.z;
     v.vx = vel.x; v.vy = vel.y; v.vz = vel.z;
@@ -148,9 +146,7 @@ static KValue make_vec3(double x, double y, double z) {
 
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
-    v.elements = NULL;
-    v.string = NULL;
-    v.element_count = 0;
+    v.heap = NULL;
 
     return v;
 }
@@ -166,9 +162,8 @@ static KValue make_bool(bool value) {
 
     for (int i = 0; i < 16; i++) v.m[i] = 0.0;
 
-    v.elements = NULL;
-    v.string = NULL;   
-    v.element_count = 0;
+    v.heap = NULL;
+    v.heap = NULL;   
 
     return v;
 }
@@ -184,32 +179,15 @@ static KValue make_mat4(const double* m) {
 
     for (int i = 0; i < 16; i++) v.m[i] = m[i];
 
-    v.elements = NULL;
-    v.string = NULL;
-    v.element_count = 0;
+    v.heap = NULL;
 
     return v;
 }
 
 static KValue make_array(int count) {
-    KValue v;
+    KValue v = make_number(0.0);
     v.type = K_VALUE_ARRAY;
-    v.number = 0.0;
-    v.x = 0.0;
-    v.y = 0.0;
-    v.z = 0.0;
-    v.boolean = false;
-    v.string = NULL;
-
-    for (int i = 0; i < 16; i++) v.m[i] = 0.0;
-
-    v.element_count = count;
-    v.elements = count > 0 ? malloc(sizeof(KValue) * (size_t)count) : NULL;
-
-    if (count > 0 && !v.elements) {
-        runtime_error("Out of memory allocating array", 0);
-    }
-
+    v.heap = (Obj*)gc_alloc_array(count);
     return v;
 }
 
@@ -438,16 +416,12 @@ static void print_value_inner(KValue value) {
 
         printf(")");
     } else if (is_array(value)) {
+        ObjArray* arr = (ObjArray*)value.heap;
         printf("[");
-
-        for (int i = 0; i < value.element_count; i++) {
-            print_value_inner(value.elements[i]);
-
-            if (i + 1 < value.element_count) {
-                printf(", ");
-            }
+        for (int i = 0; i < arr->count; i++) {
+            print_value_inner(arr->elements[i]);
+            if (i + 1 < arr->count) printf(", ");
         }
-
         printf("]");
     } else if (is_particle(value)) {
         printf(
@@ -458,7 +432,8 @@ static void print_value_inner(KValue value) {
             value.mass
         );
     } else if (is_string(value)) {
-        printf("%s", value.string);
+        ObjString* str = (ObjString*)value.heap;
+        printf("%s", str->chars);
     }
 }
 
@@ -507,9 +482,7 @@ static KValue mat4_to_kvalue(Mat4 m) {
         v.m[i] = m.m[i];
     }
 
-    v.elements = NULL;
-    v.string = NULL;
-    v.element_count = 0;
+    v.heap = NULL;
 
     return v;
 }
@@ -517,17 +490,7 @@ static KValue mat4_to_kvalue(Mat4 m) {
 static KValue make_string(const char* text) {
     KValue v = make_number(0.0);
     v.type = K_VALUE_STRING;
-
-    size_t n = strlen(text);
-    char* copy = malloc(n + 1);
-
-    if (!copy) {
-        runtime_error("Out of memory allocating string", 0);
-    }
-
-    strcpy(copy, text);
-    v.string = copy;
-
+    v.heap = (Obj*)gc_alloc_string(text, strlen(text));
     return v;
 }
 
@@ -596,23 +559,20 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
             }
 
             if (is_string(left) && is_string(right)) {
-                size_t la = strlen(left.string);
-                size_t lb = strlen(right.string);
+                ObjString* l = (ObjString*)left.heap;
+                ObjString* r = (ObjString*)right.heap;
+                int new_len = l->length + r->length;
 
-                char* buf = malloc(la + lb + 1);
+                char* buf = malloc(new_len + 1);
+                memcpy(buf, l->chars, l->length);
+                memcpy(buf + l->length, r->chars, r->length);
+                buf[new_len] = '\0';
 
-                if (!buf) {
-                    runtime_error_at("Out of memory concatenating strings", op);
-                }
-
-                strcpy(buf, left.string);
-                strcat(buf, right.string);
-
-                KValue r = make_number(0.0);
-                r.type = K_VALUE_STRING;
-                r.string = buf;
-
-                return r;
+                KValue res = make_number(0.0);
+                res.type = K_VALUE_STRING;
+                res.heap = (Obj*)gc_alloc_string(buf, new_len);
+                free(buf);
+                return res;
             }
 
             runtime_error_at("Invalid operands to '+'", op);
@@ -760,12 +720,10 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
             }
 
             if (is_string(left) && is_string(right)) {
-                bool eq = strcmp(left.string, right.string) == 0;
-
-                if (op.type == TOKEN_NE) {
-                    eq = !eq;
-                }
-
+                ObjString* l = (ObjString*)left.heap;
+                ObjString* r = (ObjString*)right.heap;
+                bool eq = (l->length == r->length) && (strcmp(l->chars, r->chars) == 0);
+                if (op.type == TOKEN_NE) eq = !eq;
                 return make_bool(eq);
             }
 
@@ -791,12 +749,10 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
             }
 
             if (is_string(left) && is_string(right)) {
-                bool eq = strcmp(left.string, right.string) == 0;
-
-                if (op.type == TOKEN_NE) {
-                    eq = !eq;
-                }
-
+                ObjString* l = (ObjString*)left.heap;
+                ObjString* r = (ObjString*)right.heap;
+                bool eq = (l->length == r->length) && (strcmp(l->chars, r->chars) == 0);
+                if (op.type == TOKEN_NE) eq = !eq;
                 return make_bool(eq);
             }
 
@@ -956,28 +912,24 @@ static KValue evaluate(ASTNode* node) {
 
         case NODE_ARRAY_LITERAL: {
             int count = node->statement_count;
-
             KValue arr = make_array(count);
-
+            ObjArray* obj = (ObjArray*)arr.heap;
             for (int i = 0; i < count; i++) {
-                arr.elements[i] = evaluate(node->statements[i]);
+                obj->elements[i] = evaluate(node->statements[i]);
             }
-
             return arr;
         }
 
         case NODE_INDEX: {
             KValue base = evaluate(node->left);
-
-            if (!is_array(base)) {
-                runtime_error_at("Index operator expects an array", node->token);
+            if (is_array(base)) {
+                ObjArray* arr = (ObjArray*)base.heap;
+                KValue idx = evaluate(node->right);
+                int i = require_index(idx, arr->count, node->token);
+                return arr->elements[i];
             }
-
-            KValue idx = evaluate(node->right);
-
-            int i = require_index(idx, base.element_count, node->token);
-
-            return base.elements[i];
+            runtime_error_at("Index operator expects an array", node->token);
+            return make_number(0.0);
         }
 
         case NODE_BINARY_OP: {
@@ -1218,15 +1170,15 @@ static KValue evaluate(ASTNode* node) {
 
             if (strcmp(name, "len") == 0) {
                 KValue a = evaluate(node->statements[0]);
-
                 if (is_array(a)) {
-                    return make_number((double)a.element_count);
+                    ObjArray* arr = (ObjArray*)a.heap;
+                    return make_number((double)arr->count);
                 }
 
                 if (is_string(a)) {
-                    return make_number((double)strlen(a.string));
+                    ObjString* str = (ObjString*)a.heap;
+                    return make_number((double)str->length);
                 }
-                
                 runtime_error_at("len() expects an array or string argument", node->token);
 
             }
@@ -1709,26 +1661,18 @@ static void execute_statement(ASTNode* node) {
 
         case NODE_INDEX_ASSIGN: {
             KValue* base = find_variable(node->token.lexeme);
-
-            if (!base) {
-                runtime_error_at("Undefined variable", node->token);
-            }
-
-            if (!is_array(*base)) {
-                runtime_error_at("Index assignment expects an array", node->token);
-            }
-
+            if (!base) runtime_error_at("Undefined variable", node->token);
+            if (!is_array(*base)) runtime_error_at("Index assignment expects an array", node->token);
             if (variable_is_const(node->token.lexeme)) {
                 char msg[300];
                 snprintf(msg, sizeof(msg), "Cannot modify constant '%s'", node->token.lexeme);
                 runtime_error_at(msg, node->token);
             }
 
+            ObjArray* arr = (ObjArray*)base->heap;
             KValue idx = evaluate(node->left);
-
-            int i = require_index(idx, base->element_count, node->token);
-
-            base->elements[i] = evaluate(node->right);
+            int i = require_index(idx, arr->count, node->token);
+            arr->elements[i] = evaluate(node->right);
             break;
         }
 
