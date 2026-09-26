@@ -71,6 +71,7 @@ const char* token_type_name(TokenType type) {
         case TOKEN_OR: return "OR";
         case TOKEN_NOT: return "NOT";
         case TOKEN_ERROR: return "ERROR";
+        case TOKEN_COLON: return "COLON";
         default: return "UNKNOWN";
     }
 }
@@ -432,6 +433,10 @@ Token* lex(const char* source, int* token_count) {
 
             case ',':
                 tokens[count++] = make_token(TOKEN_COMMA, ",", 0, line);
+                break;
+
+            case ':':
+                tokens[count++] = make_token(TOKEN_COLON, ":", 0, line);
                 break;
 
             default: {

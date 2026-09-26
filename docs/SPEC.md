@@ -29,15 +29,14 @@ fn return sim step dt parallel for in vec3 mat4 particle`.
 
 ## 4. Operator precedence (low -> high)
 
-```
+
 ||
 &&
 == != < > <= >=
 + -
 * /
 ! (unary)
-. member acces, [i] indexing (postfix)
-```
+Postfic: `.member`, `[i]` indexing, `[a:b]` slicing, calls `f(...)`.
 
 ## 5. Scoping rules
 
@@ -73,6 +72,9 @@ Array: `len` accepts arrays and strings. Strings support `+` (concatentation)
 and `==`/`!=` (byte-wise comparison). `print` emits string contents
 raw, without quotes.
 Particle: `integrate apply_force clear_force`
+String access: `s[i]` yields a 1-char string; `s[a:b]` yields the
+half-open substring `[a, b]`. Bounds must be whole numbers in
+`0.len`; omitted bounds default to `0` and `len`. Results are copies.
 
 ## 9. Diagnostics and exit codes
 

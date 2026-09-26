@@ -501,11 +501,15 @@ static KValue mat4_to_kvalue(Mat4 m) {
     return v;
 }
 
-static KValue make_string(const char* text) {
+static KValue make_string_len(const char* text, int length) {
     KValue v = make_number(0.0);
     v.type = K_VALUE_STRING;
-    v.heap = (Obj*)gc_alloc_string(text, strlen(text));
+    v.heap = (Obj*)gc_alloc_string(text, length);
     return v;
+}
+
+static KValue make_string(const char* text) {
+    return make_string_len(text, (int)strlen(text));
 }
 
 static bool is_string(KValue value) {
@@ -936,13 +940,22 @@ static KValue evaluate(ASTNode* node) {
 
         case NODE_INDEX: {
             KValue base = evaluate(node->left);
+
             if (is_array(base)) {
                 ObjArray* arr = (ObjArray*)base.heap;
                 KValue idx = evaluate(node->right);
                 int i = require_index(idx, arr->count, node->token);
                 return arr->elements[i];
             }
-            runtime_error_at("Index operator expects an array", node->token);
+
+            if (is_string(base)) {
+                ObjString* str = (ObjString*)base.heap;
+                KValue idx = evaluate(node->right);
+                int i = require_index(idx, str->length, node->token);
+                return make_string_len(str->chars + i, 1);
+            }
+
+            runtime_error_at("Index operator expects an array or string", node->token);
             return make_number(0.0);
         }
 
@@ -1504,6 +1517,36 @@ static KValue evaluate(ASTNode* node) {
         case NODE_STRING_LITERAL: {
             return make_string(node->token.lexeme);
         }
+
+        case NODE_SLICE: {
+            KValue base = evaluate(node->left);
+
+            if (!is_string(base)) {
+                runtime_error_at("Slice operator expects a string", node->token);
+            }
+
+            ObjString* str = (ObjString*)base.heap;
+
+            int start = 0;
+            int end = str->length;
+
+            // count is len+1 so the end bound may equal len
+            if (node->right) {
+                KValue sv = evaluate(node->right);
+                start = require_index(sv, str->length + 1, node->token);
+            }
+
+            if (node->third) {
+                KValue ev = evaluate(node->third);
+                end = require_index(ev, str->length + 1, node->token);
+            }
+
+            if (start > end) {
+                runtime_error_at("Slice start must not exceed end", node->token);
+            }
+
+            return make_string_len(str->chars + start, end - start);
+        } 
 
         default: {
             return make_number(0.0);

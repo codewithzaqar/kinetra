@@ -483,15 +483,41 @@ static ASTNode* unary() {
         if (peek().type == TOKEN_LBRACKET) {
             Token bracket = advance();
 
-            ASTNode* idx = expression();
+            ASTNode* start = NULL;
+            ASTNode* end = NULL;
+            bool is_slice = false;
 
-            expect(TOKEN_RBRACKET, "Expected ']' after index");
+            // Optional start bound
+            if (peek().type != TOKEN_COLON) {
+                start = expression();
+            }
 
-            ASTNode* index_node = create_node(NODE_INDEX, bracket);
-            index_node->left = node;
-            index_node->right = idx;
+            // Colon turns indexing into slicing
+            if (peek().type == TOKEN_COLON) {
+                is_slice = true;
+                advance();
 
-            node = index_node;
+                // Optional end bound
+                if (peek().type != TOKEN_RBRACKET) {
+                    end = expression();
+                }
+            }
+
+            expect(TOKEN_RBRACKET, "Expected ']' after index or slice");
+
+            if (is_slice) {
+                ASTNode* slice_node = create_node(NODE_SLICE, bracket);
+                slice_node->left = node;
+                slice_node->right = start;
+                slice_node->third = end;
+                node = slice_node;
+            } else {
+                ASTNode* index_node = create_node(NODE_INDEX, bracket);
+                index_node->left = node;
+                index_node->right = start;
+                node = index_node;
+            }
+
             continue;
         }
 
@@ -1053,6 +1079,7 @@ const char* ast_node_name(ASTNodeType type) {
         case NODE_NUMBER_LITERAL: return "NUMBER";
         case NODE_BOOLEAN_LITERAL: return "BOOLEAN";
         case NODE_VARIABLE: return "VARIABLE";
+        case NODE_SLICE: return "SLICE";
         default: return "UNKNOWN";
     }
 }
