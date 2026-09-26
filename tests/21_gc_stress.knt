@@ -1,0 +1,11 @@
+// Kinetra v0.0.2a02 GC stress
+let i = 0.0;
+let last = [0.0];
+while i < 100000.0 {
+	i = i + 1.0;
+	let t = ["aaaaaaaaaa", i];
+	last = t;
+}
+print len(last);
+print last[1];
+print i;

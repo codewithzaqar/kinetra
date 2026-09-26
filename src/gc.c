@@ -13,6 +13,9 @@ typedef struct {
 
 	KValue* roots[1024];
 	int root_count;
+
+	bool enabled;
+	int collections;
 } GC;
 
 static GC gc;
@@ -22,6 +25,8 @@ void gc_init(void) {
 	gc.bytes_allocated = 0;
 	gc.next_gc = GC_INITIAL_THRESHOLD;
 	gc.root_count = 0;
+	gc.enabled = true;
+	gc.collections = 0;
 }
 
 static void mark_object(Obj* obj) {
@@ -38,12 +43,27 @@ static void mark_object(Obj* obj) {
 	}
 }
 
+static GcRootScanner root_scanner = NULL;
+
+void gc_set_root_scanner(GcRootScanner scanner) {
+	root_scanner = scanner;
+}
+
+void gc_mark_value(KValue* value) {
+	if (!value) return;
+
+	if (value->type == K_VALUE_ARRAY || value->type == K_VALUE_STRING) {
+		mark_object(value->heap);
+	}
+}
+
 static void mark_roots(void) {
+	if (root_scanner) {
+		root_scanner();
+	}
+
 	for (int i = 0; i < gc.root_count; i++) {
-		KValue* val = gc.roots[i];
-		if (val->type == K_VALUE_ARRAY || val->type == K_VALUE_STRING) {
-			mark_object(val->heap);
-		}
+		gc_mark_value(gc.roots[i]);
 	}
 }
 
@@ -75,6 +95,7 @@ void gc_collect(void) {
 	mark_roots();
 	sweep();
 	gc.next_gc = gc.bytes_allocated * 2;
+	gc.collections++;
 }
 
 void gc_push_root(KValue* value) {
@@ -140,4 +161,23 @@ void gc_free_all(void) {
 		obj = next;
 	}
 	gc.objects = NULL;
+}
+
+void gc_set_enabled(bool enabled) {
+	gc.enabled = enabled;
+}
+
+void gc_try_collect(void) {
+	if (!gc.enabled) return;
+	if (gc.bytes_allocated <= gc.next_gc) return;
+
+	gc_collect();
+}
+
+size_t gc_bytes_allocated(void) {
+	return gc.bytes_allocated;
+}
+
+int gc_collections(void) {
+	return gc.collections;
 }

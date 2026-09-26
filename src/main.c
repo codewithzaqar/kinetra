@@ -19,6 +19,7 @@ void print_usage() {
     printf("  --raw      Suppress banner/stage output (for testing)\n");
     printf("  --version  Print version\n");
     printf("  --help     Show this help messgae\n\n");
+    printf("  --gc       Print GC statistics after execution\n");
     printf("Exit codes: 0=ok, 1=lex, 2=parse, 3=runtime, 4=io, 5=codegen, 64=usage\n");
 }
 
@@ -230,6 +231,7 @@ int main(int argc, char** argv) {
     bool dump_ast = false;
     bool repl = false;
     bool raw = false;
+    bool gc_stats = false;
     const char* filename = NULL;
 
     for (int i = 1; i < argc; i++) {
@@ -253,6 +255,8 @@ int main(int argc, char** argv) {
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage();
             return KINETRA_EXIT_OK;
+        } else if (strcmp(argv[i], "--gc") == 0) {
+            gc_stats = true;
         } else {
             filename = argv[i];
         }
@@ -370,6 +374,14 @@ int main(int argc, char** argv) {
         if (!raw) printf("\n--- Executing Simulation ---\n");
         execute(ast);
         if (!raw) printf("\n--- Simulation Finished ---\n");
+    }
+
+    if (gc_stats) {
+        printf(
+            "[GC] bytes allocated: %zu, collections: %d\n",
+            gc_bytes_allocated(),
+            gc_collections()
+        );
     }
 
     // Cleanup

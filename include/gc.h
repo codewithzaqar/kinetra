@@ -41,4 +41,19 @@ void gc_collect(void);
 void gc_push_root(KValue* KValue);
 void gc_pop_root(void);
 
+// Root scanning: the VM registers a callback that marks its own roots
+typedef void (*GcRootScanner)(void);
+void gc_set_root_scanner(GcRootScanner scanner);
+
+// Mark a single value (used by root scanners)
+void gc_mark_value(KValue* value);
+
+// Collection control
+void gc_set_enabled(bool enabled);
+void gc_try_collect(void);
+
+// Stats
+size_t gc_bytes_allocated(void);
+int gc_collections(void);
+
 #endif

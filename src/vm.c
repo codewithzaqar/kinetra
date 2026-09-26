@@ -60,6 +60,20 @@ typedef enum {
 static KFlowSignal flow_signal = K_FLOW_NORMAL;
 static KValue return_value;
 
+static void vm_mark_roots(void) {
+    for (int i = 0; i < variable_count; i++) {
+        gc_mark_value(&variables[i].value);
+    }
+
+    for (int f = 0; f < frame_depth; f++) {
+        for (int i = 0; i < frames[f].count; i++) {
+            gc_mark_value(&frames[f].values[i]);
+        }
+    }
+
+    gc_mark_value(&return_value);
+}
+
 // ============================================================
 // Errors
 // ============================================================
@@ -1566,6 +1580,7 @@ static void execute_sim(ASTNode* node) {
     }
 
     for (long i = 0; i < steps; i++) {
+        gc_try_collect();
         push_frame();
 
         set_variable_number("step_index", (double)i, node->token);
@@ -1605,6 +1620,7 @@ static void execute_sim(ASTNode* node) {
 
 static void execute_while(ASTNode* node) {
     for (;;) {
+        gc_try_collect();
         KValue cond = evaluate(node->left);
         bool keep = require_bool(cond, "while condition", node->token);
 
@@ -1759,6 +1775,8 @@ static void execute_statement(ASTNode* node) {
             const char* name = node->token.lexeme;
             ASTNode* body = node->right;
 
+            gc_set_enabled(false);
+
         #ifdef _OPENMP
             #pragma omp parallel for schedule(static)
         #endif
@@ -1779,8 +1797,9 @@ static void execute_statement(ASTNode* node) {
 
                 frame_depth = saved_depth;
                 flow_signal = saved_flow;
-            }
+            }  
 
+            gc_set_enabled(true);
             break;
         }
 
@@ -1814,9 +1833,11 @@ void execute(ASTNode* ast) {
         return;
     }
 
+    gc_set_root_scanner(vm_mark_roots);
     flow_signal = K_FLOW_NORMAL;
 
     for (int i = 0; i < ast->statement_count; i++) {
+        gc_try_collect();
         execute_statement(ast->statements[i]);
 
         if (flow_signal == K_FLOW_RETURN) {
