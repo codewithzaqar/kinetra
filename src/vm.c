@@ -1402,6 +1402,160 @@ static KValue evaluate(ASTNode* node) {
                 return vec3_to_kvalue(r);
             }
 
+            if (strcmp(name, "split") == 0) {
+                KValue a = evaluate(node->statements[0]);
+                KValue b = evaluate(node->statements[1]);
+
+                if (!is_string(a) || !is_string(b)) {
+                    runtime_error_at("split() expects string arguments", node->token);
+                }
+
+                ObjString* src = (ObjString*)a.heap;
+                ObjString* sep = (ObjString*)b.heap;
+
+                if (sep->length == 0) {
+                    runtime_error_at("split() separator must be non-empty", node->token);
+                }
+
+                // Count parts: occurrences + 1
+                int count = 1;
+                for (int i = 0; i + sep->length <= src->length;) {
+                    if (strncmp(src->chars + i, sep->chars, sep->length) == 0) {
+                        count++;
+                        i += sep->length;
+                    } else {
+                        i++;
+                    }
+                }
+
+                KValue arr = make_array(count);
+                ObjArray* obj = (ObjArray*)arr.heap;
+
+                int part_start = 0;
+                int idx = 0;
+                int i = 0;
+
+                while (i + sep->length <= src->length) {
+                    if (strncmp(src->chars + i, sep->chars, sep->length) == 0) {
+                        obj->elements[idx++] = make_string_len(src->chars + part_start, i - part_start);
+                        i += sep->length;
+                        part_start = i;
+                    } else {
+                        i++;
+                    }
+                }
+
+                obj->elements[idx++] = make_string_len(src->chars + part_start, src->length - part_start);
+
+                return arr;
+            }
+
+            if (strcmp(name, "join") == 0) {
+                KValue a = evaluate(node->statements[0]);
+                KValue b = evaluate(node->statements[1]);
+
+                if (!is_array(a)) {
+                    runtime_error_at("join() expects an array first arguments", node->token);
+                }
+
+                if (!is_string(b)) {
+                    runtime_error_at("join() expects a string separator", node->token);
+                }
+
+                ObjArray* arr = (ObjArray*)a.heap;
+                ObjString* sep = (ObjString*)b.heap;
+
+                int total = 0;
+
+                for (int i = 0; i < arr->count; i++) {
+                    if (!is_string(arr->elements[i])) {
+                        runtime_error_at("join() expects string elements", node->token);
+                    }
+
+                    total += ((ObjString*)arr->elements[i].heap)->length;
+
+                    if (i + 1 < arr->count) {
+                        total += sep->length;
+                    }
+                }
+
+                char* buf = malloc((size_t)total + 1);
+
+                if (!buf) {
+                    runtime_error_at("Out of memory joining strings", node->token);
+                }
+
+                int pos = 0;
+
+                for (int i = 0; i < arr->count; i++) {
+                    ObjString* e = (ObjString*)arr->elements[i].heap;
+                    memcpy(buf + pos, e->chars, (size_t)e->length);
+                    pos += e->length;
+
+                    if (i + 1 < arr->count) {
+                        memcpy(buf + pos, sep->chars, (size_t)sep->length);
+                        pos += sep->length;
+                    }
+                }
+
+                buf[pos] = '\0';
+
+                KValue r = make_string_len(buf, pos);
+                free(buf);
+
+                return r;
+            }
+
+            if (strcmp(name, "find") == 0) {
+                KValue a = evaluate(node->statements[0]);
+                KValue b = evaluate(node->statements[1]);
+
+                if (!is_string(a) || !is_string(b)) {
+                    runtime_error_at("find() expects string arguments", node->token);
+                }
+
+                ObjString* src = (ObjString*)a.heap;
+                ObjString* sub = (ObjString*)b.heap;
+
+                double result = -1.0;
+
+                if (sub->length == 0) {
+                    result = 0.0;
+                } else {
+                    for (int i = 0; i + sub->length <= src->length; i++) {
+                        if (strncmp(src->chars + i, sub->chars, (size_t)sub->length) == 0) {
+                            result = (double)i;
+                            break;
+                        }
+                    }
+                }
+
+                return make_number(result);
+            }
+
+            if (strcmp(name, "to_number") == 0) {
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_string(a)) {
+                    runtime_error_at("to_number() expects a string argument", node->token);
+                }
+
+                ObjString* s = (ObjString*)a.heap;
+
+                if (s->length == 0) {
+                    runtime_error_at("to_number() expects a numeric string", node->token);
+                }
+
+                char* end = NULL;
+                double v = strtod(s->chars, &end);
+
+                if (end != s->chars + s->length) {
+                    runtime_error_at("to_number() expects a numeric string", node->token);
+                }
+
+                return make_number(v);  
+            }
+
             runtime_error_at("Unknown built-in function", node->token);
             return make_number(0.0);
         }

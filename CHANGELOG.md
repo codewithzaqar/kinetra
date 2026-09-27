@@ -1,12 +1,16 @@
 # Kinetra Changelog
 
-## [0.0.2a03] - 2026-09-26
+## [0.0.2a04] - 2026-09-27
 
+- Added `split(s, sep)` returning a GC-allocated array of strings.
+- Added `join(arr, sep)` with string-element validation.
+- Added `find(s, sub)` returning the first index or -1.
+- Added `to_number(s)` with strict whole-string parsing.
 - Added string indexing: `s[i]` returns a 1-char string.
 - Added string slicing: `s[a:b]`, `s[:b]`, `[s[a:]`, `s[:]`.
 - Added bounds-checked slice semantics with copied, GC-allocated results.
 - Added `TOKEN_COLON` and `NODE_SLICE`.
-- Added tests 22 (slices) and 23 (out-of-bounds index).
+- Added tests 24 (stdlib) and 25 (parse failure path).
 - Added VM root scanner: globals, call frames, and return slot are marked.
 - Added automatic collection at safe points (top-level statements,
 while iterations, sim iterations).
@@ -22,6 +26,7 @@ while iterations, sim iterations).
 
 ### Known Limitations
 
+- New built-ins remain tree-walk only (codegen error under `--bc`).
 - Slicing arrays is not supported yet (runtime error).
 - Bytecode VM rejects indexing/slicing (codegen error).
 - Collection is deferred to loop/statement boundaries; garbage produced

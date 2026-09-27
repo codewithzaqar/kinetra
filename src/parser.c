@@ -286,7 +286,10 @@ static ASTNode* primary() {
             strcmp(name, "apply_force") == 0 ||
             strcmp(name, "integrate") == 0 ||
             strcmp(name, "pow") == 0 ||
-            strcmp(name, "reflect") == 0
+            strcmp(name, "reflect") == 0 ||
+            strcmp(name, "split") == 0 ||
+            strcmp(name, "join") == 0 ||
+            strcmp(name, "find") == 0
         ) {
             if (arity != 2) {
                 fprintf(
@@ -327,7 +330,8 @@ static ASTNode* primary() {
             strcmp(name, "log") == 0 ||
             strcmp(name, "floor") == 0 ||
             strcmp(name, "ceil") == 0 ||
-            strcmp(name, "round") == 0
+            strcmp(name, "round") == 0 ||
+            strcmp(name, "to_number") == 0
         ) {
             if (arity != 1) {
                 fprintf(

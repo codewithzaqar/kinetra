@@ -75,6 +75,9 @@ Particle: `integrate apply_force clear_force`
 String access: `s[i]` yields a 1-char string; `s[a:b]` yields the
 half-open substring `[a, b]`. Bounds must be whole numbers in
 `0.len`; omitted bounds default to `0` and `len`. Results are copies.
+String: `split(s, sep) -> array`, `join(arr, sep) -> string`,
+`find(s, sub) -> number` (-1 when absent), `to_number(s) -> number`
+(whole-string parse; otherwise runtime error).
 
 ## 9. Diagnostics and exit codes
 
@@ -100,13 +103,12 @@ covers the scalar core only, arrays share refernces.
 | number / boolean literals, variables, `let` | ✅ |
 | `+ - * /`, comparisons, `&& \|\| !` | ✅ |
 | `print`, `if/else`, `while`, `break`, `continue` | ✅ |
-| `const` | ⚠ accepted, immutability **not enforced** (party gap) |
+| `const` | ✅ enforced (since v0.0.1b2) |
 | vec3 / mat4 / particle / array / string | ❌ codegen error |
 | member access, indexing, index assignment | ❌ codegen error |
 | all built-in functions | ❌ codegen error |
 | user functions (`fn`) | ❌ codegen error |
 | `sim`, `step`, `parallel for` | ❌ codegen error |
-| `const` | ✅ enforced (since v0.0.1b2) |
 
 Runtime error columns: the tree-walk VM reports columns for constant
 violations and division by zero; full column migration is scheduled
