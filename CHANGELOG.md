@@ -1,7 +1,12 @@
 # Kinetra Changelog
 
-## [0.0.2a05] - 2026-09-27
+## [0.0.2a06] - 2026-09-27
 
+- Added bytecode function support: declarations, calls, recursion,
+`OP_CALL/OP_RETURN`, and a bytecode call-frame stack.
+- Added top-level function pre-scan for mutual recursion.
+- Added frame-aware name resolution and const enforcement in the
+bytecode VM.
 - Added bytecode GC roots: chunk constants, bytecode globals, operand stack.
 - Added collection safe point at OP_LOOP back-edges.
 - Added bytecode string support: literals, concatenation, equality,
@@ -25,6 +30,7 @@ while iterations, sim iterations).
 
 ### Changed
 
+- Bytecode function declarations are hoisted (documented divergence).
 - Bytecode operand stack moved to file scope for root scanning.
 - docs/SPEC.md §12 parity table updated.
 - `make_string()` refactored onto length-aware `make_string_len()`.
@@ -32,6 +38,7 @@ while iterations, sim iterations).
 
 ### Known Limitations
 
+- Bytecode blocks are scope-flat (function frames only).
 - Bytecode VM still lacks arrays, mat4/vec3/particle, and user functions.
 - New built-ins remain tree-walk only (codegen error under `--bc`).
 - Slicing arrays is not supported yet (runtime error).

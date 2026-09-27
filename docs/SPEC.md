@@ -105,12 +105,17 @@ covers the scalar core only, arrays share refernces.
 | `print`, `if/else`, `while`, `break`, `continue` | ✅ |
 | `const` | ✅ enforced (since v0.0.1b2) |
 | string literals, `+`, `==`/`!=`, `[i]`, `[a:b]`, `len` | ✅ (since v0.0.2a05)|
+| user functions (`fn`), recursion, calls | ✅ (since v0.0.2a06; hoisted)|
 | vec3 / mat4 / particle / array / string | ❌ codegen error |
 | member access, indexing, index assignment | ❌ codegen error |
 | all built-in functions | ❌ codegen error |
 | user functions (`fn`) | ❌ codegen error |
 | `sim`, `step`, `parallel for` | ❌ codegen error |
 
+Bytecode functions compile to jumped-over body regions with a
+function table; `OP_CALL`/`OP_RETURN` manage a frame stack. Top-level
+function are pre-scanned, so mutual recursion compiles. Blocks remain
+scope-flat in the bytecode VM (function frames only).
 Bytecode string opcodes: `OP_INDEX_STR`, `OP_SLICE_STR`, `OP_LEN`.
 Bytecode roots (constants, globals, operand stack) are marked before
 every sweep; collection runs at `OP_LOOP` back-edges.

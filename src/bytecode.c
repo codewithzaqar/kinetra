@@ -3,26 +3,28 @@
 #include "../include/value.h"
 #include "../include/gc.h"
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 // ============================================================
 // Limits
 // ============================================================
 
-#define BC_CODE_CAP    65536
-#define BC_MAX_CONSTS  256
-#define BC_MAX_NAMES   256
-#define BC_MAX_GLOBALS 256
-#define BC_STACK_MAX   1024
+#define BC_CODE_CAP        65536
+#define BC_MAX_CONSTS      256
+#define BC_MAX_NAMES       256
+#define BC_MAX_GLOBALS     256
+#define BC_STACK_MAX       1024
+#define BC_MAX_FUNCS       64
+#define BC_MAX_PARAMS      16
+#define BC_MAX_FRAMES      128
+#define BC_MAX_FRAME_VARS  128
 
 // ============================================================
 // Opcodes
 // ============================================================
 
 typedef enum {
-    OP_INDEX_STR,
-    OP_SLICE_STR,
-    OP_LEN,
     OP_HALT,
     OP_CONST,
     OP_PRINT,
@@ -45,12 +47,24 @@ typedef enum {
     OP_JUMP_IF_FALSE,
     OP_JUMP_IF_FALSE_KEEP,
     OP_JUMP_IF_TRUE_KEEP,
-    OP_LOOP
+    OP_LOOP,
+    OP_INDEX_STR,
+    OP_SLICE_STR,
+    OP_LEN,
+    OP_CALL,
+    OP_RETURN
 } OpCode;
 
 // ============================================================
 // Chunk
 // ============================================================
+
+typedef struct {
+    char name[256];
+    int entry;
+    int arity;
+    char params[BC_MAX_PARAMS][256];
+} BcFunction;
 
 typedef struct {
     uint8_t code[BC_CODE_CAP];
@@ -63,12 +77,15 @@ typedef struct {
 
     char names[BC_MAX_NAMES][256];
     int name_count;
+
+    BcFunction functions[BC_MAX_FUNCS];
+    int function_count;
 } Chunk;
 
 static Chunk chunk;
 
 // ============================================================
-// Loop Context (break / continue patching)
+// Loop Context
 // ============================================================
 
 typedef struct LoopCtx {
@@ -80,6 +97,34 @@ typedef struct LoopCtx {
 } LoopCtx;
 
 static LoopCtx* current_loop = NULL;
+
+// ============================================================
+// Runtime State
+// ============================================================
+
+typedef struct {
+    char name[256];
+    KValue value;
+    bool is_const;
+} BcGlobal;
+
+static BcGlobal bc_globals[BC_MAX_GLOBALS];
+static int bc_global_count = 0;
+
+static KValue bc_stack[BC_STACK_MAX];
+static int bc_sp = 0;
+
+typedef struct {
+    char names[BC_MAX_FRAME_VARS][256];
+    KValue values[BC_MAX_FRAME_VARS];
+    bool consts[BC_MAX_FRAME_VARS];
+    int count;
+    int return_ip;
+    int sp_before;
+} BcFrame;
+
+static BcFrame bc_frames[BC_MAX_FRAMES];
+static int bc_frame_count = 0;
 
 // ============================================================
 // Errors and Value Helpers
@@ -123,18 +168,23 @@ static KValue bc_string(const char* text, int length) {
 }
 
 // ============================================================
-// Emission Helpers
+// Emission
 // ============================================================
 
 static void emit_byte(uint8_t v, Token token) {
-    if (chunk.count >= BC_CODE_CAP) codegen_error(token, "program too large");
+    if (chunk.count >= BC_CODE_CAP) {
+        codegen_error(token, "program too large for prototype bytecode VM");
+    }
+
     chunk.code[chunk.count] = v;
     chunk.lines[chunk.count] = token.line;
     chunk.cols[chunk.count] = token.column;
     chunk.count++;
 }
 
-static void emit_op(uint8_t op, Token token) { emit_byte(op, token); }
+static void emit_op(uint8_t op, Token token) {
+    emit_byte(op, token);
+}
 
 static void emit_u16(uint16_t v, Token token) {
     emit_byte((uint8_t)(v & 0xFF), token);
@@ -187,6 +237,170 @@ static int intern_name(const char* name, Token token) {
     return chunk.name_count++;
 }
 
+static int add_function(const char* name, int arity, Token token) {
+    for (int i = 0; i < chunk.function_count; i++) {
+        if (strcmp(chunk.functions[i].name, name) == 0) {
+            chunk.functions[i].arity = arity;
+            return i;
+        }
+    }
+
+    if (chunk.function_count >= BC_MAX_FUNCS) {
+        codegen_error(token, "too many functions for prototype bytecode VM");
+    }
+
+    int idx = chunk.function_count++;
+    strncpy(chunk.functions[idx].name, name, 255);
+    chunk.functions[idx].name[255] = '\0';
+    chunk.functions[idx].entry = -1;
+    chunk.functions[idx].arity = arity;
+    return idx;
+}
+
+static int find_function(const char* name) {
+    for (int i = 0; i < chunk.function_count; i++) {
+        if (strcmp(chunk.functions[i].name, name) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// ============================================================
+// Scope Lookup / Definition
+// ============================================================
+
+static KValue* bc_lookup(const char* name) {
+    for (int f = bc_frame_count - 1; f >= 0; f--) {
+        for (int i = 0; i < bc_frames[f].count; i++) {
+            if (strcmp(bc_frames[f].names[i], name) == 0) {
+                return &bc_frames[f].values[i];
+            }
+        }
+    }
+
+    for (int i = 0; i < bc_global_count; i++) {
+        if (strcmp(bc_globals[i].name, name) == 0) {
+            return &bc_globals[i].value;
+        }
+    }
+
+    return NULL;
+}
+
+static bool bc_is_const(const char* name) {
+    for (int f = bc_frame_count - 1; f >= 0; f--) {
+        for (int i = 0; i < bc_frames[f].count; i++) {
+            if (strcmp(bc_frames[f].names[i], name) == 0) {
+                return bc_frames[f].consts[i];
+            }
+        }
+    }
+
+    for (int i = 0; i < bc_global_count; i++) {
+        if (strcmp(bc_globals[i].name, name) == 0) {
+            return bc_globals[i].is_const;
+        }
+    }
+
+    return false;
+}
+
+static void bc_define(const char* name, KValue value, bool is_const_decl, int ip) {
+    if (bc_frame_count > 0) {
+        BcFrame* fr = &bc_frames[bc_frame_count - 1];
+
+        for (int i = 0; i < fr->count; i++) {
+            if (strcmp(fr->names[i], name) == 0) {
+                if (fr->consts[i] && !is_const_decl) {
+                    char msg[300];
+                    snprintf(msg, sizeof(msg), "Cannot redeclare constant '%s'", name);
+                    bc_runtime_error(ip, msg);
+                }
+
+                fr->values[i] = value;
+                fr->consts[i] = is_const_decl;
+                return;
+            }
+        }
+
+        if (fr->count >= BC_MAX_FRAME_VARS) {
+            bc_runtime_error(ip, "Too many local variables in scope");
+        }
+
+        strncpy(fr->names[fr->count], name, 255);
+        fr->names[fr->count][255] = '\0';
+        fr->values[fr->count] = value;
+        fr->consts[fr->count] = is_const_decl;
+        fr->count++;
+        return;
+    }
+
+    KValue* existing = bc_lookup(name);
+
+    if (existing) {
+        if (bc_is_const(name)) {
+            char msg[300];
+            snprintf(
+                msg,
+                sizeof(msg),
+                is_const_decl
+                    ? "Cannot redeclare constant '%s'"
+                    : "Cannot assign to constant '%s'",
+                name
+            );
+            bc_runtime_error(ip, msg);
+        }
+
+        *existing = value;
+        return;
+    }
+
+    if (bc_global_count >= BC_MAX_GLOBALS) {
+        bc_runtime_error(ip, "bytecode VM variable limit reached");
+    }
+
+    strncpy(bc_globals[bc_global_count].name, name, 255);
+    bc_globals[bc_global_count].name[255] = '\0';
+    bc_globals[bc_global_count].value = value;
+    bc_globals[bc_global_count].is_const = is_const_decl;
+    bc_global_count++;
+}
+
+// ============================================================
+// GC Roots
+// ============================================================
+
+static void bc_mark_roots(void) {
+    for (int i = 0; i < chunk.const_count; i++) {
+        gc_mark_value(&chunk.consts[i]);
+    }
+
+    for (int i = 0; i < bc_global_count; i++) {
+        gc_mark_value(&bc_globals[i].value);
+    }
+
+    for (int f = 0; f < bc_frame_count; f++) {
+        for (int i = 0; i < bc_frames[f].count; i++) {
+            gc_mark_value(&bc_frames[f].values[i]);
+        }
+    }
+
+    for (int i = 0; i < bc_sp; i++) {
+        gc_mark_value(&bc_stack[i]);
+    }
+}
+
+static bool bc_truthy(KValue v, int ip) {
+    if (v.type == K_VALUE_BOOL) {
+        return v.boolean;
+    }
+
+    bc_runtime_error(ip, "condition must be a boolean");
+    return false;
+}
+
 // ============================================================
 // Compiler
 // ============================================================
@@ -201,6 +415,18 @@ static void compile_expression(ASTNode* node) {
         case NODE_NUMBER_LITERAL: {
             emit_op(OP_CONST, line);
             emit_byte((uint8_t)add_const(bc_number(node->token.value), line), line);
+            break;
+        }
+
+        case NODE_STRING_LITERAL: {
+            emit_op(OP_CONST, line);
+            emit_byte(
+                (uint8_t)add_const(
+                    bc_string(node->token.lexeme, (int)strlen(node->token.lexeme)),
+                    line
+                ),
+                line
+            );
             break;
         }
 
@@ -230,7 +456,6 @@ static void compile_expression(ASTNode* node) {
         }
 
         case NODE_BINARY_OP: {
-            // Short-circuit &&
             if (node->token.type == TOKEN_AND) {
                 compile_expression(node->left);
                 int j = emit_jump(OP_JUMP_IF_FALSE_KEEP, line);
@@ -239,7 +464,6 @@ static void compile_expression(ASTNode* node) {
                 break;
             }
 
-            // Short-circuit ||
             if (node->token.type == TOKEN_OR) {
                 compile_expression(node->left);
                 int j = emit_jump(OP_JUMP_IF_TRUE_KEEP, line);
@@ -266,18 +490,6 @@ static void compile_expression(ASTNode* node) {
                     codegen_error(line, "bytecode VM does not support this operator yet");
             }
 
-            break;
-        }
-
-        case NODE_STRING_LITERAL: {
-            emit_op(OP_CONST, line);
-            emit_byte(
-                (uint8_t)add_const(
-                    bc_string(node->token.lexeme, (int)strlen(node->token.lexeme)),
-                    line
-                ),
-                line
-            );
             break;
         }
 
@@ -310,16 +522,22 @@ static void compile_expression(ASTNode* node) {
         }
 
         case NODE_CALL: {
-            if (
-                node->statement_count == 1 &&
-                strcmp(node->token.lexeme, "len") == 0
-            ) {
-                compile_expression(node->statements[0]);
-                emit_op(OP_LEN, line);
-                break;
+            int fidx = find_function(node->token.lexeme);
+
+            if (fidx < 0) {
+                codegen_error(line, "bytecode VM: unknown function");
             }
 
-            codegen_error(line, "bytecode VM does not support this call yet");
+            if (node->statement_count != chunk.functions[fidx].arity) {
+                codegen_error(line, "bytecode VM: argument count mismatch");
+            }
+
+            for (int i = 0; i < node->statement_count; i++) {
+                compile_expression(node->statements[i]);
+            }
+
+            emit_op(OP_CALL, line);
+            emit_byte((uint8_t)fidx, line);
             break;
         }
 
@@ -341,6 +559,13 @@ static void compile_statement(ASTNode* node) {
         case NODE_LET: {
             compile_expression(node->left);
             emit_op(OP_DEFINE_GLOBAL, line);
+            emit_byte((uint8_t)intern_name(node->token.lexeme, line), line);
+            break;
+        }
+
+        case NODE_CONST: {
+            compile_expression(node->left);
+            emit_op(OP_DEFINE_CONST, line);
             emit_byte((uint8_t)intern_name(node->token.lexeme, line), line);
             break;
         }
@@ -444,10 +669,47 @@ static void compile_statement(ASTNode* node) {
             break;
         }
 
-        case NODE_CONST: {
-            compile_expression(node->left);
-            emit_op(OP_DEFINE_CONST, line);
-            emit_byte((uint8_t)intern_name(node->token.lexeme, line), line);
+        case NODE_FUNCTION: {
+            int arity = node->statement_count;
+
+            if (arity > BC_MAX_PARAMS) {
+                codegen_error(line, "too many parameters for prototype bytecode VM");
+            }
+
+            int fidx = add_function(node->token.lexeme, arity, line);
+
+            for (int p = 0; p < arity; p++) {
+                strncpy(
+                    chunk.functions[fidx].params[p],
+                    node->statements[p]->token.lexeme,
+                    255
+                );
+                chunk.functions[fidx].params[p][255] = '\0';
+            }
+
+            int skip = emit_jump(OP_JUMP, line);
+
+            chunk.functions[fidx].entry = chunk.count;
+
+            compile_statement(node->left);
+
+            emit_op(OP_CONST, line);
+            emit_byte((uint8_t)add_const(bc_number(0.0), line), line);
+            emit_op(OP_RETURN, line);
+
+            patch_jump(skip);
+            break;
+        }
+
+        case NODE_RETURN: {
+            if (node->left) {
+                compile_expression(node->left);
+            } else {
+                emit_op(OP_CONST, line);
+                emit_byte((uint8_t)add_const(bc_number(0.0), line), line);
+            }
+
+            emit_op(OP_RETURN, line);
             break;
         }
 
@@ -457,107 +719,17 @@ static void compile_statement(ASTNode* node) {
 }
 
 // ============================================================
-// Bytecode VM Globals
-// ============================================================
-
-typedef struct {
-    char name[256];
-    KValue value;
-    bool is_const;
-} BcGlobal;
-
-static BcGlobal bc_globals[BC_MAX_GLOBALS];
-static int bc_global_count = 0;
-
-static KValue bc_stack[BC_STACK_MAX];
-static int bc_sp = 0;
-
-static KValue* bc_find(const char* name) {
-    for (int i = 0; i < bc_global_count; i++) {
-        if (strcmp(bc_globals[i].name, name) == 0) {
-            return &bc_globals[i].value;
-        }
-    }
-
-    return NULL;
-}
-
-static void bc_define(const char* name, KValue value, bool is_const_decl, int ip) {
-    KValue* existing = bc_find(name);
-
-    if (existing) {
-        int idx = -1;
-
-        for (int i = 0; i < bc_global_count; i++) {
-            if (strcmp(bc_globals[i].name, name) == 0) {
-                idx = i;
-                break;
-            }
-        }
-
-        if (idx >= 0 && bc_globals[idx].is_const) {
-            char msg[300];
-            snprintf(
-                msg,
-                sizeof(msg),
-                is_const_decl
-                    ? "Cannot redeclare constant '%s'"
-                    : "Cannot assign to constant '%s'",
-                name
-            );
-            bc_runtime_error(ip, msg);
-        }
-
-        *existing = value;
-        return;
-    }
-
-    if (bc_global_count >= BC_MAX_GLOBALS) {
-        bc_runtime_error(ip, "bytecode VM variable limit reached");
-    }
-
-    strncpy(bc_globals[bc_global_count].name, name, 255);
-    bc_globals[bc_global_count].name[255] = '\0';
-    bc_globals[bc_global_count].value = value;
-    bc_globals[bc_global_count].is_const = is_const_decl;
-    bc_global_count++;
-}
-
-static bool bc_truthy(KValue v, int ip) {
-    if (v.type == K_VALUE_BOOL) {
-        return v.boolean;
-    }
-
-    bc_runtime_error(ip, "condition must be a boolean");
-    return false;
-}
-
-static void bc_mark_roots(void) {
-    for (int i = 0; i < chunk.const_count; i++) {
-        gc_mark_value(&chunk.consts[i]);
-    }
-
-    for (int i = 0; i < bc_global_count; i++) {
-        gc_mark_value(&bc_globals[i].value);
-    }
-
-    for (int i = 0; i < bc_sp; i++) {
-        gc_mark_value(&bc_stack[i]);
-    }
-}
-
-// ============================================================
-// Bytecode VM Execution
+// Execution
 // ============================================================
 
 static void bc_exec(bool quiet) {
-    int ip = 0;
+    bc_sp = 0;
     bc_global_count = 0;
+    bc_frame_count = 0;
 
-    bc_global_count = 0;
+    int ip = 0;
 
     for (;;) {
-        int line = chunk.lines[ip];
         uint8_t op = chunk.code[ip++];
 
         switch (op) {
@@ -568,7 +740,7 @@ static void bc_exec(bool quiet) {
                 uint8_t idx = chunk.code[ip++];
 
                 if (bc_sp >= BC_STACK_MAX) {
-                    bc_runtime_error(ip, "bytecode bc_stack overflow");
+                    bc_runtime_error(ip, "bytecode stack overflow");
                 }
 
                 bc_stack[bc_sp++] = chunk.consts[idx];
@@ -580,13 +752,13 @@ static void bc_exec(bool quiet) {
 
                 if (!quiet) {
                     if (v.type == K_VALUE_NUMBER) {
-                        printf("[Kinetra] %g\n", v.number);
+                        printf("%g\n", v.number);
                     } else if (v.type == K_VALUE_BOOL) {
-                        printf("[Kinetra] %s\n", v.boolean ? "true" : "false");
+                        printf("%s\n", v.boolean ? "true" : "false");
                     } else if (v.type == K_VALUE_STRING) {
-                        printf("%s", ((ObjString*)v.heap)->chars);
+                        printf("%s\n", ((ObjString*)v.heap)->chars);
                     } else {
-                        printf("[Kinetra] <value>\n");
+                        printf("<value>\n");
                     }
                 }
 
@@ -595,14 +767,14 @@ static void bc_exec(bool quiet) {
 
             case OP_GET_GLOBAL: {
                 uint8_t nidx = chunk.code[ip++];
-                KValue* g = bc_find(chunk.names[nidx]);
+                KValue* g = bc_lookup(chunk.names[nidx]);
 
                 if (!g) {
                     bc_runtime_error(ip, "Undefined variable");
                 }
 
                 if (bc_sp >= BC_STACK_MAX) {
-                    bc_runtime_error(ip, "bytecode bc_stack overflow");
+                    bc_runtime_error(ip, "bytecode stack overflow");
                 }
 
                 bc_stack[bc_sp++] = *g;
@@ -610,19 +782,19 @@ static void bc_exec(bool quiet) {
             }
 
             case OP_DEFINE_GLOBAL:
-                case OP_SET_GLOBAL: {
-                    uint8_t nidx = chunk.code[ip++];
-                    KValue v = bc_stack[--bc_sp];
-                    bc_define(chunk.names[nidx], v, false, ip);
-                    break;
-                }
+            case OP_SET_GLOBAL: {
+                uint8_t nidx = chunk.code[ip++];
+                KValue v = bc_stack[--bc_sp];
+                bc_define(chunk.names[nidx], v, false, ip);
+                break;
+            }
 
-                case OP_DEFINE_CONST: {
-                    uint8_t nidx = chunk.code[ip++];
-                    KValue v = bc_stack[--bc_sp];
-                    bc_define(chunk.names[nidx], v, true, ip);
-                    break;
-                } 
+            case OP_DEFINE_CONST: {
+                uint8_t nidx = chunk.code[ip++];
+                KValue v = bc_stack[--bc_sp];
+                bc_define(chunk.names[nidx], v, true, ip);
+                break;
+            }
 
             case OP_ADD:
             case OP_SUB:
@@ -631,13 +803,16 @@ static void bc_exec(bool quiet) {
                 KValue b = bc_stack[--bc_sp];
                 KValue a = bc_stack[--bc_sp];
 
-                if  (op == OP_ADD && a.type == K_VALUE_STRING && b.type == K_VALUE_STRING) {
+                if (op == OP_ADD && a.type == K_VALUE_STRING && b.type == K_VALUE_STRING) {
                     ObjString* l = (ObjString*)a.heap;
                     ObjString* r = (ObjString*)b.heap;
                     int n = l->length + r->length;
 
                     char* buf = malloc((size_t)n + 1);
-                    if (!buf) bc_runtime_error(ip, "Out of memory concatenating strings");
+
+                    if (!buf) {
+                        bc_runtime_error(ip, "Out of memory concatenating strings");
+                    }
 
                     memcpy(buf, l->chars, (size_t)l->length);
                     memcpy(buf + l->length, r->chars, (size_t)r->length);
@@ -700,7 +875,7 @@ static void bc_exec(bool quiet) {
                     ObjString* r = (ObjString*)b.heap;
 
                     bool eq = l->length == r->length &&
-                        memcmp(l->chars, r->chars, (size_t)l->length) == 0;
+                              memcmp(l->chars, r->chars, (size_t)l->length) == 0;
 
                     if (op == OP_NE) eq = !eq;
 
@@ -762,9 +937,9 @@ static void bc_exec(bool quiet) {
                 KValue v = bc_stack[bc_sp - 1];
 
                 if (!bc_truthy(v, ip)) {
-                    ip = t;      // keep the false value as the result
+                    ip = t;
                 } else {
-                    bc_sp--;        // discard and evaluate the right side
+                    bc_sp--;
                 }
 
                 break;
@@ -776,10 +951,10 @@ static void bc_exec(bool quiet) {
 
                 KValue v = bc_stack[bc_sp - 1];
 
-                if (bc_truthy(v, line)) {
-                    ip = t;      // keep the true value as the result
+                if (bc_truthy(v, ip)) {
+                    ip = t;
                 } else {
-                    bc_sp--;        // discard and evaluate the right side
+                    bc_sp--;
                 }
 
                 break;
@@ -851,7 +1026,54 @@ static void bc_exec(bool quiet) {
 
                 bc_stack[bc_sp++] = bc_number((double)((ObjString*)v.heap)->length);
                 break;
-            } 
+            }
+
+            case OP_CALL: {
+                uint8_t fidx = chunk.code[ip++];
+                BcFunction* fn = &chunk.functions[fidx];
+
+                if (fn->entry < 0) {
+                    bc_runtime_error(ip, "bytecode VM: function body missing");
+                }
+
+                if (bc_frame_count >= BC_MAX_FRAMES) {
+                    bc_runtime_error(ip, "Call stack overflow");
+                }
+
+                BcFrame* fr = &bc_frames[bc_frame_count++];
+
+                fr->count = 0;
+                fr->sp_before = bc_sp - fn->arity;
+                fr->return_ip = ip;
+
+                for (int i = 0; i < fn->arity; i++) {
+                    strncpy(fr->names[i], fn->params[i], 255);
+                    fr->names[i][255] = '\0';
+                    fr->values[i] = bc_stack[fr->sp_before + i];
+                    fr->consts[i] = false;
+                    fr->count++;
+                }
+
+                bc_sp = fr->sp_before;
+                ip = fn->entry;
+                break;
+            }
+
+            case OP_RETURN: {
+                if (bc_frame_count == 0) {
+                    bc_runtime_error(ip, "return outside of function");
+                }
+
+                KValue rv = bc_stack[--bc_sp];
+
+                bc_frame_count--;
+                BcFrame* fr = &bc_frames[bc_frame_count];
+
+                bc_sp = fr->sp_before;
+                bc_stack[bc_sp++] = rv;
+                ip = fr->return_ip;
+                break;
+            }
 
             default:
                 bc_runtime_error(ip, "unknown bytecode opcode");
@@ -863,6 +1085,26 @@ static void bc_exec(bool quiet) {
 // Entry
 // ============================================================
 
+static void prescan_functions(ASTNode* program) {
+    for (int i = 0; i < program->statement_count; i++) {
+        ASTNode* s = program->statements[i];
+
+        if (s->type == NODE_FUNCTION) {
+            int arity = s->statement_count;
+            int idx = add_function(s->token.lexeme, arity, s->token);
+
+            for (int p = 0; p < arity && p < BC_MAX_PARAMS; p++) {
+                strncpy(
+                    chunk.functions[idx].params[p],
+                    s->statements[p]->token.lexeme,
+                    255
+                );
+                chunk.functions[idx].params[p][255] = '\0';
+            }
+        }
+    }
+}
+
 void bc_run_program(ASTNode* ast, bool quiet) {
     if (!ast || ast->type != NODE_PROGRAM) {
         return;
@@ -871,7 +1113,10 @@ void bc_run_program(ASTNode* ast, bool quiet) {
     chunk.count = 0;
     chunk.const_count = 0;
     chunk.name_count = 0;
+    chunk.function_count = 0;
     current_loop = NULL;
+
+    prescan_functions(ast);
 
     for (int i = 0; i < ast->statement_count; i++) {
         compile_statement(ast->statements[i]);
