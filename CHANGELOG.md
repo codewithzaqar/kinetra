@@ -1,7 +1,11 @@
 # Kinetra Changelog
 
-## [0.0.2a04] - 2026-09-27
+## [0.0.2a05] - 2026-09-27
 
+- Added bytecode GC roots: chunk constants, bytecode globals, operand stack.
+- Added collection safe point at OP_LOOP back-edges.
+- Added bytecode string support: literals, concatenation, equality,
+OP_INDEX_STR, OP_SLICE_STR, OP_LEN, string printing.
 - Added `split(s, sep)` returning a GC-allocated array of strings.
 - Added `join(arr, sep)` with string-element validation.
 - Added `find(s, sub)` returning the first index or -1.
@@ -21,11 +25,14 @@ while iterations, sim iterations).
 
 ### Changed
 
+- Bytecode operand stack moved to file scope for root scanning.
+- docs/SPEC.md §12 parity table updated.
 - `make_string()` refactored onto length-aware `make_string_len()`.
 - GC is suspended inside `parallel for` regions (no concurrent collection).
 
 ### Known Limitations
 
+- Bytecode VM still lacks arrays, mat4/vec3/particle, and user functions.
 - New built-ins remain tree-walk only (codegen error under `--bc`).
 - Slicing arrays is not supported yet (runtime error).
 - Bytecode VM rejects indexing/slicing (codegen error).

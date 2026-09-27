@@ -1,6 +1,7 @@
 #include "../include/bytecode.h"
 #include "../include/diagnostics.h"
 #include "../include/value.h"
+#include "../include/gc.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -19,6 +20,9 @@
 // ============================================================
 
 typedef enum {
+    OP_INDEX_STR,
+    OP_SLICE_STR,
+    OP_LEN,
     OP_HALT,
     OP_CONST,
     OP_PRINT,
@@ -108,6 +112,13 @@ static KValue bc_bool(bool value) {
     KValue v = bc_number(0.0);
     v.type = K_VALUE_BOOL;
     v.boolean = value;
+    return v;
+}
+
+static KValue bc_string(const char* text, int length) {
+    KValue v = bc_number(0.0);
+    v.type = K_VALUE_STRING;
+    v.heap = (Obj*)gc_alloc_string(text, length);
     return v;
 }
 
@@ -258,6 +269,60 @@ static void compile_expression(ASTNode* node) {
             break;
         }
 
+        case NODE_STRING_LITERAL: {
+            emit_op(OP_CONST, line);
+            emit_byte(
+                (uint8_t)add_const(
+                    bc_string(node->token.lexeme, (int)strlen(node->token.lexeme)),
+                    line
+                ),
+                line
+            );
+            break;
+        }
+
+        case NODE_INDEX: {
+            compile_expression(node->left);
+            compile_expression(node->right);
+            emit_op(OP_INDEX_STR, line);
+            break;
+        }
+
+        case NODE_SLICE: {
+            compile_expression(node->left);
+
+            if (node->right) {
+                compile_expression(node->right);
+            } else {
+                emit_op(OP_CONST, line);
+                emit_byte((uint8_t)add_const(bc_number(-1.0), line), line);
+            }
+
+            if (node->third) {
+                compile_expression(node->third);
+            } else {
+                emit_op(OP_CONST, line);
+                emit_byte((uint8_t)add_const(bc_number(-1.0), line), line);
+            }
+
+            emit_op(OP_SLICE_STR, line);
+            break;
+        }
+
+        case NODE_CALL: {
+            if (
+                node->statement_count == 1 &&
+                strcmp(node->token.lexeme, "len") == 0
+            ) {
+                compile_expression(node->statements[0]);
+                emit_op(OP_LEN, line);
+                break;
+            }
+
+            codegen_error(line, "bytecode VM does not support this call yet");
+            break;
+        }
+
         default:
             codegen_error(line, "bytecode VM does not support this expression yet");
     }
@@ -404,6 +469,9 @@ typedef struct {
 static BcGlobal bc_globals[BC_MAX_GLOBALS];
 static int bc_global_count = 0;
 
+static KValue bc_stack[BC_STACK_MAX];
+static int bc_sp = 0;
+
 static KValue* bc_find(const char* name) {
     for (int i = 0; i < bc_global_count; i++) {
         if (strcmp(bc_globals[i].name, name) == 0) {
@@ -464,14 +532,27 @@ static bool bc_truthy(KValue v, int ip) {
     return false;
 }
 
+static void bc_mark_roots(void) {
+    for (int i = 0; i < chunk.const_count; i++) {
+        gc_mark_value(&chunk.consts[i]);
+    }
+
+    for (int i = 0; i < bc_global_count; i++) {
+        gc_mark_value(&bc_globals[i].value);
+    }
+
+    for (int i = 0; i < bc_sp; i++) {
+        gc_mark_value(&bc_stack[i]);
+    }
+}
+
 // ============================================================
 // Bytecode VM Execution
 // ============================================================
 
 static void bc_exec(bool quiet) {
-    KValue stack[BC_STACK_MAX];
-    int sp = 0;
     int ip = 0;
+    bc_global_count = 0;
 
     bc_global_count = 0;
 
@@ -486,22 +567,24 @@ static void bc_exec(bool quiet) {
             case OP_CONST: {
                 uint8_t idx = chunk.code[ip++];
 
-                if (sp >= BC_STACK_MAX) {
-                    bc_runtime_error(ip, "bytecode stack overflow");
+                if (bc_sp >= BC_STACK_MAX) {
+                    bc_runtime_error(ip, "bytecode bc_stack overflow");
                 }
 
-                stack[sp++] = chunk.consts[idx];
+                bc_stack[bc_sp++] = chunk.consts[idx];
                 break;
             }
 
             case OP_PRINT: {
-                KValue v = stack[--sp];
+                KValue v = bc_stack[--bc_sp];
 
                 if (!quiet) {
                     if (v.type == K_VALUE_NUMBER) {
                         printf("[Kinetra] %g\n", v.number);
                     } else if (v.type == K_VALUE_BOOL) {
                         printf("[Kinetra] %s\n", v.boolean ? "true" : "false");
+                    } else if (v.type == K_VALUE_STRING) {
+                        printf("%s", ((ObjString*)v.heap)->chars);
                     } else {
                         printf("[Kinetra] <value>\n");
                     }
@@ -518,25 +601,25 @@ static void bc_exec(bool quiet) {
                     bc_runtime_error(ip, "Undefined variable");
                 }
 
-                if (sp >= BC_STACK_MAX) {
-                    bc_runtime_error(ip, "bytecode stack overflow");
+                if (bc_sp >= BC_STACK_MAX) {
+                    bc_runtime_error(ip, "bytecode bc_stack overflow");
                 }
 
-                stack[sp++] = *g;
+                bc_stack[bc_sp++] = *g;
                 break;
             }
 
             case OP_DEFINE_GLOBAL:
                 case OP_SET_GLOBAL: {
                     uint8_t nidx = chunk.code[ip++];
-                    KValue v = stack[--sp];
+                    KValue v = bc_stack[--bc_sp];
                     bc_define(chunk.names[nidx], v, false, ip);
                     break;
                 }
 
                 case OP_DEFINE_CONST: {
                     uint8_t nidx = chunk.code[ip++];
-                    KValue v = stack[--sp];
+                    KValue v = bc_stack[--bc_sp];
                     bc_define(chunk.names[nidx], v, true, ip);
                     break;
                 } 
@@ -545,8 +628,25 @@ static void bc_exec(bool quiet) {
             case OP_SUB:
             case OP_MUL:
             case OP_DIV: {
-                KValue b = stack[--sp];
-                KValue a = stack[--sp];
+                KValue b = bc_stack[--bc_sp];
+                KValue a = bc_stack[--bc_sp];
+
+                if  (op == OP_ADD && a.type == K_VALUE_STRING && b.type == K_VALUE_STRING) {
+                    ObjString* l = (ObjString*)a.heap;
+                    ObjString* r = (ObjString*)b.heap;
+                    int n = l->length + r->length;
+
+                    char* buf = malloc((size_t)n + 1);
+                    if (!buf) bc_runtime_error(ip, "Out of memory concatenating strings");
+
+                    memcpy(buf, l->chars, (size_t)l->length);
+                    memcpy(buf + l->length, r->chars, (size_t)r->length);
+                    buf[n] = '\0';
+
+                    bc_stack[bc_sp++] = bc_string(buf, n);
+                    free(buf);
+                    break;
+                }
 
                 if (a.type != K_VALUE_NUMBER || b.type != K_VALUE_NUMBER) {
                     bc_runtime_error(ip, "bytecode VM arithmetic expects numbers");
@@ -564,7 +664,7 @@ static void bc_exec(bool quiet) {
                     r = a.number / b.number;
                 }
 
-                stack[sp++] = bc_number(r);
+                bc_stack[bc_sp++] = bc_number(r);
                 break;
             }
 
@@ -572,8 +672,8 @@ static void bc_exec(bool quiet) {
             case OP_GT:
             case OP_LE:
             case OP_GE: {
-                KValue b = stack[--sp];
-                KValue a = stack[--sp];
+                KValue b = bc_stack[--bc_sp];
+                KValue a = bc_stack[--bc_sp];
 
                 if (a.type != K_VALUE_NUMBER || b.type != K_VALUE_NUMBER) {
                     bc_runtime_error(ip, "bytecode VM comparison expects numbers");
@@ -586,14 +686,27 @@ static void bc_exec(bool quiet) {
                 else if (op == OP_LE) r = a.number <= b.number;
                 else r = a.number >= b.number;
 
-                stack[sp++] = bc_bool(r);
+                bc_stack[bc_sp++] = bc_bool(r);
                 break;
             }
 
             case OP_EQ:
             case OP_NE: {
-                KValue b = stack[--sp];
-                KValue a = stack[--sp];
+                KValue b = bc_stack[--bc_sp];
+                KValue a = bc_stack[--bc_sp];
+
+                if (a.type == K_VALUE_STRING && b.type == K_VALUE_STRING) {
+                    ObjString* l = (ObjString*)a.heap;
+                    ObjString* r = (ObjString*)b.heap;
+
+                    bool eq = l->length == r->length &&
+                        memcmp(l->chars, r->chars, (size_t)l->length) == 0;
+
+                    if (op == OP_NE) eq = !eq;
+
+                    bc_stack[bc_sp++] = bc_bool(eq);
+                    break;
+                }
 
                 if (a.type != b.type) {
                     bc_runtime_error(ip, "bytecode VM equality expects matching types");
@@ -607,18 +720,18 @@ static void bc_exec(bool quiet) {
 
                 if (op == OP_NE) eq = !eq;
 
-                stack[sp++] = bc_bool(eq);
+                bc_stack[bc_sp++] = bc_bool(eq);
                 break;
             }
 
             case OP_NOT: {
-                KValue v = stack[--sp];
+                KValue v = bc_stack[--bc_sp];
 
                 if (v.type != K_VALUE_BOOL) {
                     bc_runtime_error(ip, "'!' expects a boolean");
                 }
 
-                stack[sp++] = bc_bool(!v.boolean);
+                bc_stack[bc_sp++] = bc_bool(!v.boolean);
                 break;
             }
 
@@ -633,7 +746,7 @@ static void bc_exec(bool quiet) {
                 uint16_t t = (uint16_t)(chunk.code[ip] | ((uint16_t)chunk.code[ip + 1] << 8));
                 ip += 2;
 
-                KValue v = stack[--sp];
+                KValue v = bc_stack[--bc_sp];
 
                 if (!bc_truthy(v, ip)) {
                     ip = t;
@@ -646,12 +759,12 @@ static void bc_exec(bool quiet) {
                 uint16_t t = (uint16_t)(chunk.code[ip] | ((uint16_t)chunk.code[ip + 1] << 8));
                 ip += 2;
 
-                KValue v = stack[sp - 1];
+                KValue v = bc_stack[bc_sp - 1];
 
                 if (!bc_truthy(v, ip)) {
                     ip = t;      // keep the false value as the result
                 } else {
-                    sp--;        // discard and evaluate the right side
+                    bc_sp--;        // discard and evaluate the right side
                 }
 
                 break;
@@ -661,23 +774,84 @@ static void bc_exec(bool quiet) {
                 uint16_t t = (uint16_t)(chunk.code[ip] | ((uint16_t)chunk.code[ip + 1] << 8));
                 ip += 2;
 
-                KValue v = stack[sp - 1];
+                KValue v = bc_stack[bc_sp - 1];
 
                 if (bc_truthy(v, line)) {
                     ip = t;      // keep the true value as the result
                 } else {
-                    sp--;        // discard and evaluate the right side
+                    bc_sp--;        // discard and evaluate the right side
                 }
 
                 break;
             }
 
             case OP_LOOP: {
+                gc_try_collect();
+
                 uint16_t t = (uint16_t)(chunk.code[ip] | ((uint16_t)chunk.code[ip + 1] << 8));
                 ip += 2;
                 ip = t;
                 break;
             }
+
+            case OP_INDEX_STR: {
+                KValue idx = bc_stack[--bc_sp];
+                KValue base = bc_stack[--bc_sp];
+
+                if (base.type != K_VALUE_STRING) {
+                    bc_runtime_error(ip, "bytecode VM index expects a string");
+                }
+
+                if (idx.type != K_VALUE_NUMBER) {
+                    bc_runtime_error(ip, "bytecode VM index expects a number");
+                }
+
+                ObjString* str = (ObjString*)base.heap;
+                long i = (long)idx.number;
+
+                if ((double)i != idx.number || i < 0 || i >= str->length) {
+                    bc_runtime_error(ip, "String index out of bounds");
+                }
+
+                bc_stack[bc_sp++] = bc_string(str->chars + i, 1);
+                break;
+            }
+
+            case OP_SLICE_STR: {
+                KValue endv = bc_stack[--bc_sp];
+                KValue startv = bc_stack[--bc_sp];
+                KValue base = bc_stack[--bc_sp];
+
+                if (base.type != K_VALUE_STRING) {
+                    bc_runtime_error(ip, "bytecode VM slice expects a string");
+                }
+
+                ObjString* str = (ObjString*)base.heap;
+
+                long start = 0;
+                long end = str->length;
+
+                if (startv.number >= 0.0) start = (long)startv.number;
+                if (endv.number >= 0.0) end = (long)endv.number;
+
+                if (start < 0 || end > str->length || start > end) {
+                    bc_runtime_error(ip, "String slice out of bounds");
+                }
+
+                bc_stack[bc_sp++] = bc_string(str->chars + start, (int)(end - start));
+                break;
+            }
+
+            case OP_LEN: {
+                KValue v = bc_stack[--bc_sp];
+
+                if (v.type != K_VALUE_STRING) {
+                    bc_runtime_error(ip, "bytecode VM len expects a string");
+                }
+
+                bc_stack[bc_sp++] = bc_number((double)((ObjString*)v.heap)->length);
+                break;
+            } 
 
             default:
                 bc_runtime_error(ip, "unknown bytecode opcode");
@@ -706,5 +880,6 @@ void bc_run_program(ASTNode* ast, bool quiet) {
     Token halt_tok = { TOKEN_EOF, "", 0.0, 0, 0 };
     emit_op(OP_HALT, halt_tok);
 
+    gc_set_root_scanner(bc_mark_roots);
     bc_exec(quiet);
 }

@@ -104,12 +104,16 @@ covers the scalar core only, arrays share refernces.
 | `+ - * /`, comparisons, `&& \|\| !` | ✅ |
 | `print`, `if/else`, `while`, `break`, `continue` | ✅ |
 | `const` | ✅ enforced (since v0.0.1b2) |
+| string literals, `+`, `==`/`!=`, `[i]`, `[a:b]`, `len` | ✅ (since v0.0.2a05)|
 | vec3 / mat4 / particle / array / string | ❌ codegen error |
 | member access, indexing, index assignment | ❌ codegen error |
 | all built-in functions | ❌ codegen error |
 | user functions (`fn`) | ❌ codegen error |
 | `sim`, `step`, `parallel for` | ❌ codegen error |
 
+Bytecode string opcodes: `OP_INDEX_STR`, `OP_SLICE_STR`, `OP_LEN`.
+Bytecode roots (constants, globals, operand stack) are marked before
+every sweep; collection runs at `OP_LOOP` back-edges.
 Runtime error columns: the tree-walk VM reports columns for constant
 violations and division by zero; full column migration is scheduled
 for v0.0.1rc1. Bytecode VM runtime errors remain line-only.
