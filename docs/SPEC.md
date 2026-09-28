@@ -127,3 +127,10 @@ for v0.0.1rc1. Bytecode VM runtime errors remain line-only.
 
 Feature-complete. All runtime errors report exact source columns in
 both VMs. Language frozen.
+
+## 14. Beta freeze (v0.0.2b1)
+
+The 0.0.2 line is feature-frozen: no new syntax, types, or built-ins
+until v0.0.2 ships. Remaining beta work is limited to memory
+validation (ASan/UBSan/Valgrind), bytecode parity markers,
+documentation, and bug fixes.

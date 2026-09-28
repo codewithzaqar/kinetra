@@ -8,6 +8,13 @@ CFLAGS += -fopenmp
 LDFLAGS += -fopenmp
 endif
 
+# Sanitizer build: make SANITIZE=address, undefined
+SANITIZE ?=
+ifneq ($(SANITIZE),)
+CFLAGS += -fsanitize=$(SANITIZE) -g -O1
+LDFLAGS += -fsanitize=$(SANITIZE)
+endif
+
 PREFIX ?= /usr/local
 
 SRC_DIR = src

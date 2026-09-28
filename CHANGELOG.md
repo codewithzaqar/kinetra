@@ -1,7 +1,9 @@
 # Kinetra Changelog
 
-## [0.0.2a06] - 2026-09-27
+## [0.0.2b1] - 2026-09-28
 
+- Added `make SANITIZE=...` sanitizer builds and a CI asan job.
+- Documented Valigrid zero-leak validation procedure.
 - Added bytecode function support: declarations, calls, recursion,
 `OP_CALL/OP_RETURN`, and a bytecode call-frame stack.
 - Added top-level function pre-scan for mutual recursion.
@@ -30,6 +32,7 @@ while iterations, sim iterations).
 
 ### Changed
 
+- FEATURE FREEZE for the 0.0.2 line (docs/SPEC.md §14).
 - Bytecode function declarations are hoisted (documented divergence).
 - Bytecode operand stack moved to file scope for root scanning.
 - docs/SPEC.md §12 parity table updated.
