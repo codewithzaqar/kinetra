@@ -1,4 +1,4 @@
-# Kinetra v0.0.1
+# Kinetra v0.0.2
 
 **Kinetra** is a statically-lexed, dynamically-typed scripting language for
 mathematics, physics simulation, and high-performance computing. It pairs a
