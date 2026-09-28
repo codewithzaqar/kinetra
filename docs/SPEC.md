@@ -134,3 +134,37 @@ The 0.0.2 line is feature-frozen: no new syntax, types, or built-ins
 until v0.0.2 ships. Remaining beta work is limited to memory
 validation (ASan/UBSan/Valgrind), bytecode parity markers,
 documentation, and bug fixes.
+
+## 15. Memory model and garbage collection (v0.0.2)
+
+Heap types: arrays and strings (including slice and concatenation
+results). Every heap object carries an `Obj` header and lives in a
+global registry list.
+
+Collection: mark-and-sweep.
+
+- Roots (tree-walk VM): global variable table, all call frames,
+  return slot.
+- Roots (bytecode VM): chunk constants, bytecode globals, call
+  frames, operand stack.
+- Safe points: top-level statement loop, `while` iterations, `sim`
+  iterations, and `OP_LOOP` back-edges. Collection never runs
+  mid-expression, so unrooted C temporaries cannot be swept.
+- `parallel for` suspends collection for the duration of the region.
+- Threshold: collect when allocated bytes exceed `next_gc`; after
+  each sweep `next_gc = 2 * live bytes`. Override with the
+  `KINETRA_GC_THRESHOLD` environment variable (bytes) for
+  benchmarking only.
+- Shutdown: `gc_free_all()` releases every object; a clean run
+  reports zero definitely-lost bytes under Valgrind.
+
+Not collected: C-side temporaries inside built-ins (freed manually),
+AST and token memory (process-lifetime).
+
+### Bytecode divergences (documented, intentional)
+
+1. Function declarations are hoisted: callable before their source
+   line executes.
+2. Blocks are scope-flat; only function calls create scopes.
+3. Codegen errors (unsupported): arrays, vec3, mat4, particle,
+   `sim`, `parallel for`, and all built-ins except `len` on strings.

@@ -1,7 +1,13 @@
 # Kinetra Changelog
 
-## [0.0.2b1] - 2026-09-28
+## [0.0.2rc1] - 2026-09-28
 
+- Added SPEC §15: memory model and garbage collection semantics.
+- Added consolidated bytecode divergence list (SPEC § 12).
+- Added KINETRA_GC_THRESHOLD environment knob for benchmarking.
+- Added full comparison to tools/bench.ps1 (backends + GC overhead).
+- Added v0.0.2 measurement section and acceptance criteria to docs/BENCH.md.
+- Added make uninstall target.
 - Added `make SANITIZE=...` sanitizer builds and a CI asan job.
 - Documented Valigrid zero-leak validation procedure.
 - Added bytecode function support: declarations, calls, recursion,
@@ -50,6 +56,11 @@ while iterations, sim iterations).
 inside a single deeply-nested expression is reclaimed at the next safe
 point, not immediately.
 - Bytecode VM roots are not wired yet (scheduled for v0.0.2a05).
+
+### Release gating
+
+- v0.0.2 ships when: suite green on all CI jobs (incl. asan), bench
+criteria met, Valgrind zero-loss confirmed, packaging round-trip ok.
 
 ## [0.0.1] - 2026-09-24
 

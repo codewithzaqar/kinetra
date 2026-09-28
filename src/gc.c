@@ -24,6 +24,15 @@ void gc_init(void) {
 	gc.objects = NULL;
 	gc.bytes_allocated = 0;
 	gc.next_gc = GC_INITIAL_THRESHOLD;
+	const char* env = getenv("KINETRA_GC_THRESHOLD");
+
+	if (env) {
+		long v = atol(env);
+
+		if (v > 0) {
+			gc.next_gc = (size_t)v;
+		}
+	}
 	gc.root_count = 0;
 	gc.enabled = true;
 	gc.collections = 0;

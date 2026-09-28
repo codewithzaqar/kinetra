@@ -65,5 +65,9 @@ install: all
 	cp $(TARGET) $(PREFIX)/bin/
 	@echo "Installed $(TARGET) to $(PREFIX)/bin/"
 
+uninstall:
+	rm -f $(PREFIX)/bin/$(TARGET)
+	@echo "Removed $(PREFIX)/bin/$(TARGET)"
+
 # Auto-generated header dependencies (from -MMD -MP)
 -include $(DEPS)

@@ -1,29 +1,25 @@
-# Kinetra Benchmark Guide (v0.0.1b2)
-
-## VM comparison
-
-`pwsh tools/bench.ps1`
-
-Example (8-core laptop, release build):
-
-| program | tree-walk (ms/iter) | bytecode (ms/iter) | speedup |
-|---|---|---|---|
-| bc.knt | 0.3841 | 0.0987 | 3.89x |
-
-## OpenMP parallel speedup
-
-Build serial, bench, then rebuild with OpenMP and bench again:
-
-```bash
-make clean && make     && ./kinetra --bench parallel.knt
-make clean && make OPENMP=1 && ./kinetra --bench parallel.knt
+## v0.0.2 measurements
 ```
+    pwsh tools/bench.ps1
+```
+Example (8-core laptop, serial build):
 
-Example:
-
-| build | total (ms, 100 iters) | avg (ms/iter) |
+| program | backend | avg ms/iter |
 |---|---|---|
-| serial | 5120.441 | 51.2044 |
-| OPENMP=1 (8 threads) | 890.117 | 8.9012 |
+| bc.knt | tree | 0.3841 |
+| bc.knt | bytecode | 0.0987 |
+| 27_bc_functions.knt | tree | 0.0112 |
+| 27_bc_functions.knt | bytecode | 0.0031 |
+| 28_gc_strings_stress.knt | tree+gc | 14.2210 |
+| 28_gc_strings_stress.knt | tree nogc | 13.1045 |
 
-Numbers are machine-dependent; record your own in release notes.
+GC overhead: 8.52%
+Bytecode speedup (scalar): 3.89x
+Bytecode speedup (funcs): 3.61x
+
+### Release acceptance criteria (v0.0.2rc1)
+
+- Bytecode speedup >= 3.0x on scalar and function programs.
+- GC overhead <= 10% on the churn program.
+- OpenMP `parallel for` speedup >= 0.7 * thread-count on parallel.knt.
+- Valgrind: definitely lost = 0 bytes on tests 21 and 28.
