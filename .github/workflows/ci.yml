@@ -28,13 +28,13 @@ jobs:
       - name: Bench smoke
         run: ./kinetra --bench bc.knt
 
-asan:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
+  asan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Build with sanitizers
-      run: make SANITIZE=address,undefined
+      - name: Build with sanitizers
+        run: make SANITIZE=address,undefined
 
-    - name: Regression suite under ASan/UBSan
-      run: make test
+      - name: Regression suite under ASan/UBSan
+        run: make test
