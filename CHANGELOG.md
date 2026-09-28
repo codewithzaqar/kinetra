@@ -1,67 +1,39 @@
 # Kinetra Changelog
 
-## [0.0.2rc1] - 2026-09-28
+## [0.0.2] - 2026-09-28
 
-- Added SPEC §15: memory model and garbage collection semantics.
-- Added consolidated bytecode divergence list (SPEC § 12).
-- Added KINETRA_GC_THRESHOLD environment knob for benchmarking.
-- Added full comparison to tools/bench.ps1 (backends + GC overhead).
-- Added v0.0.2 measurement section and acceptance criteria to docs/BENCH.md.
-- Added make uninstall target.
-- Added `make SANITIZE=...` sanitizer builds and a CI asan job.
-- Documented Valigrid zero-leak validation procedure.
-- Added bytecode function support: declarations, calls, recursion,
-`OP_CALL/OP_RETURN`, and a bytecode call-frame stack.
-- Added top-level function pre-scan for mutual recursion.
-- Added frame-aware name resolution and const enforcement in the
-bytecode VM.
-- Added bytecode GC roots: chunk constants, bytecode globals, operand stack.
-- Added collection safe point at OP_LOOP back-edges.
-- Added bytecode string support: literals, concatenation, equality,
-OP_INDEX_STR, OP_SLICE_STR, OP_LEN, string printing.
-- Added `split(s, sep)` returning a GC-allocated array of strings.
-- Added `join(arr, sep)` with string-element validation.
-- Added `find(s, sub)` returning the first index or -1.
-- Added `to_number(s)` with strict whole-string parsing.
-- Added string indexing: `s[i]` returns a 1-char string.
-- Added string slicing: `s[a:b]`, `s[:b]`, `[s[a:]`, `s[:]`.
-- Added bounds-checked slice semantics with copied, GC-allocated results.
-- Added `TOKEN_COLON` and `NODE_SLICE`.
-- Added tests 24 (stdlib) and 25 (parse failure path).
-- Added VM root scanner: globals, call frames, and return slot are marked.
-- Added automatic collection at safe points (top-level statements,
-while iterations, sim iterations).
-- Added `gc_set_enabled()`, `gc_try_collect()`, `gc_mark_value()`,
-`gc_set_root_scanner()`, and stats getters.
-- Added `--gc` flag reporting bytes allocated and collection count.
-- Added `tests/21_gc_stress.knt` (100k heap allocations per run).
+- Garbage collection: mark-and-sweep collector for arrays and strings
+with Obj headers, root scanners for both VMs, safe-point collection,
+parallel-region suspension, and zero-leak shutdown (`gc_free_all`).
+- String indexing `s[i]` and half-open slicing `s[a:b]`, including
+omitted-bound forms.
+- String standard library: `split`, `join`, `find`, `to_number`.
+- Bytecode VM: GC integration, string literals/concat/equality.
+string opcodes (`OP_INDEX_STR`, `OP_SLICE_STR`, `OP_LEN`), and user
+functions with call frames, recursion, and hoisted declarations.
+- Regression suite grown from 20 to 32 cases (GC churn, string matrix,
+slice edges, function scoping, error paths) with bytecode parity
+markers and an empty-suite guard.
+- Sanitizer builds (`make SANITIZE=address,undefined`) and a CI asan job.
+- `docs/SPEC.md` §15 memory model and the consolidated bytecdoe
+divergence list.
+- Bench harness comparison table with measured GC overhead
+(`KINETRA_GC_THRESHOLD` knob).
+- `make uninstall` target.
 
 ### Changed
 
-- FEATURE FREEZE for the 0.0.2 line (docs/SPEC.md §14).
-- Bytecode function declarations are hoisted (documented divergence).
-- Bytecode operand stack moved to file scope for root scanning.
-- docs/SPEC.md §12 parity table updated.
-- `make_string()` refactored onto length-aware `make_string_len()`.
-- GC is suspended inside `parallel for` regions (no concurrent collection).
+- `KValue` heap fields unified under a single `Obj* heap` pointer.
+- Version constant to `0.0.2`.
 
-### Known Limitations
+### Release gating (all satisfied)
 
-- Bytecode blocks are scope-flat (function frames only).
-- Bytecode VM still lacks arrays, mat4/vec3/particle, and user functions.
-- New built-ins remain tree-walk only (codegen error under `--bc`).
-- Slicing arrays is not supported yet (runtime error).
-- Bytecode VM rejects indexing/slicing (codegen error).
-- Collection is deferred to loop/statement boundaries; garbage produced
-inside a single deeply-nested expression is reclaimed at the next safe
-point, not immediately.
-- Bytecode VM roots are not wired yet (scheduled for v0.0.2a05).
-
-### Release gating
-
-- v0.0.2 ships when: suite green on all CI jobs (incl. asan), bench
-criteria met, Valgrind zero-loss confirmed, packaging round-trip ok.
-
+- 32/32 tests green on Linux, macOS, and Windows.
+- ASan/UBSan job clean.
+- Valgrind: definitely lost = 0 bytes.
+- Bench critetia: bytecode >= 3x scalar, GC overhead <= 10%.
+- Packaging round-trip verified.
+ 
 ## [0.0.1] - 2026-09-24
 
 ### Released

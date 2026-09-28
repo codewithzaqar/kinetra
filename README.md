@@ -157,7 +157,7 @@ parallel for i in len(out) {
 ```
 
 Each iteration runs in a private scope; with `make OPENMP=1` iterations are
-distributed across OpenMP threads. See `docs/SPEC.md` §10 for the full
+distributed across OpenMP threads. See `docs/SPEC.md` ??10 for the full
 semantics and limitations.
 
 ### Standard library

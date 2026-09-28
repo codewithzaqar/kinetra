@@ -13,7 +13,7 @@ executed bt a tree-walk VM (default) or a prototype bytecode VM (`--bc`).
 - Numbers: decimal floating-point literals (`1`, `2.5`, `.5`).
 - Reserved words: `let const print if else true false while break continue
 fn return sim step dt parallel for in vec3 mat4 particle`.
-- Built-in function names are reserved: see §8.
+- Built-in function names are reserved: see ??8.
 
 ## 3. Types
 
@@ -100,17 +100,17 @@ covers the scalar core only, arrays share refernces.
 
 | Construct | `--bc` support |
 |---|---|
-| number / boolean literals, variables, `let` | ✅ |
-| `+ - * /`, comparisons, `&& \|\| !` | ✅ |
-| `print`, `if/else`, `while`, `break`, `continue` | ✅ |
-| `const` | ✅ enforced (since v0.0.1b2) |
-| string literals, `+`, `==`/`!=`, `[i]`, `[a:b]`, `len` | ✅ (since v0.0.2a05)|
-| user functions (`fn`), recursion, calls | ✅ (since v0.0.2a06; hoisted)|
-| vec3 / mat4 / particle / array / string | ❌ codegen error |
-| member access, indexing, index assignment | ❌ codegen error |
-| all built-in functions | ❌ codegen error |
-| user functions (`fn`) | ❌ codegen error |
-| `sim`, `step`, `parallel for` | ❌ codegen error |
+| number / boolean literals, variables, `let` | ??? |
+| `+ - * /`, comparisons, `&& \|\| !` | ??? |
+| `print`, `if/else`, `while`, `break`, `continue` | ??? |
+| `const` | ??? enforced (since v0.0.1b2) |
+| string literals, `+`, `==`/`!=`, `[i]`, `[a:b]`, `len` | ??? (since v0.0.2)|
+| user functions (`fn`), recursion, calls | ??? (since v0.0.2a06; hoisted)|
+| vec3 / mat4 / particle / array / string | ??? codegen error |
+| member access, indexing, index assignment | ??? codegen error |
+| all built-in functions | ??? codegen error |
+| user functions (`fn`) | ??? codegen error |
+| `sim`, `step`, `parallel for` | ??? codegen error |
 
 Bytecode functions compile to jumped-over body regions with a
 function table; `OP_CALL`/`OP_RETURN` manage a frame stack. Top-level
@@ -128,7 +128,7 @@ for v0.0.1rc1. Bytecode VM runtime errors remain line-only.
 Feature-complete. All runtime errors report exact source columns in
 both VMs. Language frozen.
 
-## 14. Beta freeze (v0.0.2b1)
+## 14. Beta freeze (v0.0.2)
 
 The 0.0.2 line is feature-frozen: no new syntax, types, or built-ins
 until v0.0.2 ships. Remaining beta work is limited to memory
