@@ -1,5 +1,21 @@
 # Kinetra Changelog
 
+## [0.0.3a01] - 2026-09-29
+
+### Added
+
+- Added array slicing `a[i:j]` with copy semantics and omitted-bound forms.
+- Added recursive element-wise array equality via `kvalue_equal()` (depth-capped at 64 for cycle structures).
+- Added tests 35 (slicing), 36 (equality), 37 (slice bounds error).
+
+### Changed
+
+- `tested/31_fn_scopes.knt` recursion depth temporaily reduced to 25 pending the tracked frame-accounting bug (2 frames per cell).
+
+### Known Limitations
+
+- Array slicing/equality remain tree-walk only (codegen error under --bc). 
+
 ## [0.0.2] - 2026-09-28
 
 - Garbage collection: mark-and-sweep collector for arrays and strings

@@ -37,6 +37,7 @@ fn return sim step dt parallel for in vec3 mat4 particle`.
 * /
 ! (unary)
 Postfic: `.member`, `[i]` indexing, `[a:b]` slicing, calls `f(...)`.
+Array slicing: `a[i:j]` yields a new array containing a shallow copy of elements `[i, j]`. Omitted bounds default to `0` and `len`. Bounds must be whole numbers in `0..len`; `start > end` is a runtime error.
 
 ## 5. Scoping rules
 
@@ -78,6 +79,7 @@ half-open substring `[a, b]`. Bounds must be whole numbers in
 String: `split(s, sep) -> array`, `join(arr, sep) -> string`,
 `find(s, sub) -> number` (-1 when absent), `to_number(s) -> number`
 (whole-string parse; otherwise runtime error).
+Array equality: `==` compares arrays recutsively, element-wise (numbers, booleans, strings, vec3/mat4/particle by value; nested arrays recursed). Comparison depth is capped at 64; deeper nesting compares by identity, which terminates cyclic structures deterministically.
 
 ## 9. Diagnostics and exit codes
 

@@ -14,6 +14,7 @@
 #define MAX_FRAME_VARS 64
 #define MAX_FUNCTIONS 256
 #define MAX_CALL_ARGS 64
+#define K_EQUAL_MAX_DEPTH 64
 
 // ============================================================
 // Storage: Globals, Frames, Functions
@@ -561,6 +562,72 @@ static KValue call_user_function(ASTNode* node);
 // Binary Operators
 // ============================================================
 
+static bool kvalue_equal_depth(KValue a, KValue b, int depth) {
+    if (a.type != b.type) {
+        return false;
+    }
+
+    switch (a.type) {
+        case K_VALUE_NUMBER:
+            return a.number == b.number;
+
+        case K_VALUE_BOOL:
+            return a.boolean == b.boolean;
+
+        case K_VALUE_VEC3:
+            return a.x == b.x && a.y == b.y && a.z == b.z;
+
+        case K_VALUE_MAT4:
+            return memcmp(a.m, b.m, sizeof(a.m)) == 0;
+
+        case K_VALUE_PARTICLE:
+            return a.px == b.px && a.py == b.py && a.pz == b.pz &&
+            a.vx == b.vx && a.vy == b.vy && a.vz == b.vz &&
+            a.fx == b.fx && a.fy == b.fy && a.fz == b.fz &&
+            a.mass == b.mass;
+
+        case K_VALUE_STRING: {
+            ObjString* x = (ObjString*)a.heap;
+            ObjString* y = (ObjString*)b.heap;
+
+            return x->length == y->length &&
+                memcmp(x->chars, y->chars, (size_t)x->length) == 0;
+        }
+
+        case K_VALUE_ARRAY: {
+            ObjArray* x = (ObjArray*)a.heap;
+            ObjArray* y = (ObjArray*)b.heap;
+
+            if (x == y) {
+                return true;
+            }
+
+            // Depth cap terminates cyclic structures deterministically
+            if (depth >= K_EQUAL_MAX_DEPTH) {
+                return false;
+            }
+
+            if (x->count != y->count) {
+                return false;
+            }
+
+            for (int i = 0; i < x->count; i++) {
+                if (!kvalue_equal_depth(x->elements[i], y->elements[i], depth+1)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool kvalue_equal(KValue a, KValue b) {
+    return kvalue_equal_depth(a, b, 0);
+}
+
 static KValue apply_binary_op(Token op, KValue left, KValue right) {
     switch (op.type) {
         case TOKEN_OP_ADD: {
@@ -721,6 +788,16 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
         }
 
         case TOKEN_EQ: {
+            if (is_array(left) && is_array(right)) {
+                bool eq = kvalue_equal(left, right);
+
+                if (op.type == TOKEN_NE) {
+                    eq =! eq;
+                }
+
+                return make_bool(eq);
+            }
+
             if (is_number(left) && is_number(right)) {
                 return make_bool(left.number == right.number);
             }
@@ -750,6 +827,16 @@ static KValue apply_binary_op(Token op, KValue left, KValue right) {
         }
 
         case TOKEN_NE: {
+            if (is_array(left) && is_array(right)) {
+                bool eq = kvalue_equal(left, right);
+
+                if (op.type == TOKEN_NE) {
+                    eq = !eq;
+                }
+
+                return make_bool(eq);
+            }
+
             if (is_number(left) && is_number(right)) {
                 return make_bool(left.number != right.number);
             }
@@ -1674,6 +1761,36 @@ static KValue evaluate(ASTNode* node) {
 
         case NODE_SLICE: {
             KValue base = evaluate(node->left);
+
+            if (is_array(base)) {
+                ObjArray* src = (ObjArray*)base.heap;
+
+                int start = 0;
+                int end = src->count;
+
+                if (node->right) {
+                    KValue sv = evaluate(node->right);
+                    start = require_index(sv, src->count + 1, node->token);
+                }
+
+                if (node->third) {
+                    KValue ev = evaluate(node->third);
+                    end = require_index(ev, src->count + 1, node->token);
+                }
+
+                if (start > end) {
+                    runtime_error_at("Slice start must not execute end", node->token);
+                }
+
+                KValue r = make_array(end - start);
+                ObjArray* dst = (ObjArray*)r.heap;
+
+                for (int i = start; i < end; i++) {
+                    dst->elements[i - start] = src->elements[i];
+                } 
+
+                return r;
+            }
 
             if (!is_string(base)) {
                 runtime_error_at("Slice operator expects a string", node->token);
