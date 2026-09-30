@@ -80,6 +80,10 @@ String: `split(s, sep) -> array`, `join(arr, sep) -> string`,
 `find(s, sub) -> number` (-1 when absent), `to_number(s) -> number`
 (whole-string parse; otherwise runtime error).
 Array equality: `==` compares arrays recutsively, element-wise (numbers, booleans, strings, vec3/mat4/particle by value; nested arrays recursed). Comparison depth is capped at 64; deeper nesting compares by identity, which terminates cyclic structures deterministically.
+Array mutatuin (reference semantics): `push(arr, v) -> number` (new length),
+`pop(arr) -> value` (runtime error when empty), `clear(arr) -> 0`.
+Mutation through a const-bound name is a runtime error; const-ness is binding-level,
+so aliases (`let b = a;`) still mutate the shared array --- same rule as index assignment.
 
 ## 9. Diagnostics and exit codes
 

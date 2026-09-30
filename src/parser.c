@@ -289,7 +289,8 @@ static ASTNode* primary() {
             strcmp(name, "reflect") == 0 ||
             strcmp(name, "split") == 0 ||
             strcmp(name, "join") == 0 ||
-            strcmp(name, "find") == 0
+            strcmp(name, "find") == 0 ||
+            strcmp(name, "push") == 0
         ) {
             if (arity != 2) {
                 fprintf(
@@ -331,7 +332,9 @@ static ASTNode* primary() {
             strcmp(name, "floor") == 0 ||
             strcmp(name, "ceil") == 0 ||
             strcmp(name, "round") == 0 ||
-            strcmp(name, "to_number") == 0
+            strcmp(name, "to_number") == 0 ||
+            strcmp(name, "pop") == 0 ||
+            strcmp(name, "clear") == 0
         ) {
             if (arity != 1) {
                 fprintf(

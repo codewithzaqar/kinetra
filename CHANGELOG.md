@@ -1,9 +1,12 @@
 # Kinetra Changelog
 
-## [0.0.3a01] - 2026-09-29
+## [0.0.3a02] - 2026-09-30
 
 ### Added
 
+- Added `gc_array_resize()` with exact byte accounting.
+- Added `push(arr, v)`, `pop(arr)`, `clear(arr)` with reference semantics.
+- Added const-bindings mutation rejection for array built-ins.
 - Added array slicing `a[i:j]` with copy semantics and omitted-bound forms.
 - Added recursive element-wise array equality via `kvalue_equal()` (depth-capped at 64 for cycle structures).
 - Added tests 35 (slicing), 36 (equality), 37 (slice bounds error).
@@ -14,6 +17,8 @@
 
 ### Known Limitations
 
+- Mutation built-ins are tree-walk only (codegen error under --bc).
+- Const enforcement is binding-level; aliases bypass it (documented).
 - Array slicing/equality remain tree-walk only (codegen error under --bc). 
 
 ## [0.0.2] - 2026-09-28

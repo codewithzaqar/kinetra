@@ -376,6 +376,15 @@ static bool variable_is_const(const char* name) {
     return false;
 }
 
+static void reject_const_array_arg(ASTNode* arg, Token token) {
+    if (
+        arg->type == NODE_VARIABLE &&
+        variable_is_const(arg->token.lexeme)
+    ) {
+        runtime_error_at("Cannot mutate a constant array", token);
+    }
+}
+
 // ============================================================
 // Function Table
 // ============================================================
@@ -1641,6 +1650,60 @@ static KValue evaluate(ASTNode* node) {
                 }
 
                 return make_number(v);  
+            }
+
+            if (strcmp(name, "push") == 0) {
+                reject_const_array_arg(node->statements[0], node->token);
+
+                KValue a = evaluate(node->statements[0]);
+                KValue v = evaluate(node->statements[1]);
+
+                if (!is_array(a)) {
+                    runtime_error_at("push() expects an array first arguments", node->token);
+                }
+
+                ObjArray* arr = (ObjArray*)a.heap;
+
+                gc_array_resize(arr, arr->count + 1);
+                arr->elements[arr->count - 1] = v;
+
+                return make_number((double)arr->count);
+            }
+
+            if (strcmp(name, "pop") == 0) {
+                reject_const_array_arg(node->statements[0], node->token);
+
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_array(a)) {
+                    runtime_error_at("pop() expects an array arguments", node->token);
+                }
+
+                ObjArray* arr = (ObjArray*)a.heap;
+
+                if (arr->count == 0) {
+                    runtime_error_at("pop() on empty array", node->token);
+                }
+
+                KValue v = arr->elements[arr->count - 1];
+
+                gc_array_resize(arr, arr->count - 1);
+
+                return v;
+            }
+
+            if (strcmp(name, "clear") == 0) {
+                reject_const_array_arg(node->statements[0], node->token);
+
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_array(a)) {
+                    runtime_error_at("clear() expects an array arguments", node->token);
+                }
+
+                gc_array_resize((ObjArray*)a.heap, 0);
+
+                return make_number(0.0);
             }
 
             runtime_error_at("Unknown built-in function", node->token);

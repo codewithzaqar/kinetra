@@ -253,7 +253,10 @@ Token* lex(const char* source, int* token_count) {
                 strcmp(id_buf, "split") == 0 ||
                 strcmp(id_buf, "join") == 0 ||
                 strcmp(id_buf, "find") == 0 ||
-                strcmp(id_buf, "to_number") == 0
+                strcmp(id_buf, "to_number") == 0 ||
+                strcmp(id_buf, "push") == 0 ||
+                strcmp(id_buf, "pop") == 0 ||
+                strcmp(id_buf, "clear") == 0
             ) {
                 tokens[count++] = make_token(TOKEN_BUILTIN, id_buf, 0, line);
 
