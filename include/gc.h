@@ -45,6 +45,8 @@ void gc_pop_root(void);
 typedef void (*GcRootScanner)(void);
 void gc_set_root_scanner(GcRootScanner scanner);
 
+void gc_array_resize(ObjArray* arr, int new_count);
+
 // Mark a single value (used by root scanners)
 void gc_mark_value(KValue* value);
 

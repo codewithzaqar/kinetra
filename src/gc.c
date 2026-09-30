@@ -1,3 +1,4 @@
+#include "../include/kinetra.h"
 #include "../include/gc.h"
 #include "../include/value.h"
 #include <stdlib.h>
@@ -189,4 +190,39 @@ size_t gc_bytes_allocated(void) {
 
 int gc_collections(void) {
 	return gc.collections;
+}
+
+void gc_array_resize(ObjArray* arr, int new_count) {
+	if (new_count == arr->count) {
+		return;
+	}
+
+	size_t old_bytes = sizeof(KValue) * (size_t)arr->count;
+	size_t new_bytes = sizeof(KValue) * (size_t)new_count;
+
+	if (new_count > 0) {
+		KValue* grown = realloc(arr->elements, new_bytes);
+
+		if (!grown) {
+			fprintf(stderr, "[Kinetra] Out of memory resizing array\n");
+			exit(KINETRA_EXIT_RUNTIME);
+		}
+
+		arr->elements = grown;
+
+		if (new_count > arr->count) {
+			memset(
+				arr->elements + arr->count,
+				0,
+				new_bytes - old_bytes
+			);
+		}
+	} else {
+		free(arr->elements);
+		arr->elements = NULL;
+	}
+
+	gc.bytes_allocated += new_bytes;
+	gc.bytes_allocated -= old_bytes;
+	arr->count = new_count;
 }
