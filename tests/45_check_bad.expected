@@ -1,4 +1,0 @@
-[Kinetra Error] (codegen) bytecode VM does not support this expression yet
-  --> tests/45_check_bad.knt:1:9
-      1 | let a = [1.0];
-        |         ^

@@ -1,3 +1,0 @@
-// Kinetra v0.0.3a04 check mode
-let x = 1.0;
-print x;
