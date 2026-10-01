@@ -1,0 +1,1 @@
+print replace("banana", "na", "NA"); print trim(trim(" x ")); print lower(upper("MiXeD"));

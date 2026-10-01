@@ -306,7 +306,8 @@ static ASTNode* primary() {
             strcmp(name, "translate") == 0 ||
             strcmp(name, "scale") == 0 ||
             strcmp(name, "clamp") == 0 ||
-            strcmp(name, "lerp") == 0
+            strcmp(name, "lerp") == 0 ||
+            strcmp(name, "replace") == 0
         ) {
             if (arity != 3) {
                 fprintf(
@@ -334,7 +335,10 @@ static ASTNode* primary() {
             strcmp(name, "round") == 0 ||
             strcmp(name, "to_number") == 0 ||
             strcmp(name, "pop") == 0 ||
-            strcmp(name, "clear") == 0
+            strcmp(name, "clear") == 0 ||
+            strcmp(name, "upper") == 0 ||
+            strcmp(name, "lower") == 0 ||
+            strcmp(name, "trim") == 0
         ) {
             if (arity != 1) {
                 fprintf(

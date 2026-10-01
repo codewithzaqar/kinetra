@@ -84,6 +84,7 @@ Array mutatuin (reference semantics): `push(arr, v) -> number` (new length),
 `pop(arr) -> value` (runtime error when empty), `clear(arr) -> 0`.
 Mutation through a const-bound name is a runtime error; const-ness is binding-level,
 so aliases (`let b = a;`) still mutate the shared array --- same rule as index assignment.
+Transform: `upper(s)`, `lower(s)` (ASCII-only mapping; other bytes unchanged), `trim(s)` (strips space/tab/LF/CR from both ends), `replace(s, from, to_` (left-to-right, non-overlapping matches; empty `from` is a runtime error). All return new GC strings.
 
 ## 9. Diagnostics and exit codes
 

@@ -557,6 +557,10 @@ static int require_index(KValue value, int count, Token token) {
     return (int)idx;
 }
 
+static bool is_space_char(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
 // ============================================================
 // Forward Declarations
 // ============================================================
@@ -1704,6 +1708,123 @@ static KValue evaluate(ASTNode* node) {
                 gc_array_resize((ObjArray*)a.heap, 0);
 
                 return make_number(0.0);
+            }
+
+                        if (strcmp(name, "upper") == 0 || strcmp(name, "lower") == 0) {
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_string(a)) {
+                    runtime_error_at(
+                        strcmp(name, "upper") == 0
+                            ? "upper() expects a string argument"
+                            : "lower() expects a string argument",
+                        node->token
+                    );
+                }
+
+                ObjString* s = (ObjString*)a.heap;
+                char* buf = malloc((size_t)s->length + 1);
+
+                if (!buf) {
+                    runtime_error_at("Out of memory in case transform", node->token);
+                }
+
+                for (int i = 0; i < s->length; i++) {
+                    char c = s->chars[i];
+
+                    if (strcmp(name, "upper") == 0) {
+                        buf[i] = (c >= 'a' && c <= 'z') ? (char)(c - 32) : c;
+                    } else {
+                        buf[i] = (c >= 'A' && c <= 'Z') ? (char)(c + 32) : c;
+                    }
+                }
+
+                buf[s->length] = '\0';
+
+                KValue r = make_string_len(buf, s->length);
+                free(buf);
+
+                return r;
+            }
+
+            if (strcmp(name, "trim") == 0) {
+                KValue a = evaluate(node->statements[0]);
+
+                if (!is_string(a)) {
+                    runtime_error_at("trim() expects a string argument", node->token);
+                }
+
+                ObjString* s = (ObjString*)a.heap;
+
+                int start = 0;
+                int end = s->length;
+
+                while (start < end && is_space_char(s->chars[start])) start++;
+                while (end > start && is_space_char(s->chars[end - 1])) end--;
+
+                return make_string_len(s->chars + start, end - start);
+            }
+
+            if (strcmp(name, "replace") == 0) {
+                KValue a = evaluate(node->statements[0]);
+                KValue b = evaluate(node->statements[1]);
+                KValue c = evaluate(node->statements[2]);
+
+                if (!is_string(a) || !is_string(b) || !is_string(c)) {
+                    runtime_error_at("replace() expects string arguments", node->token);
+                }
+
+                ObjString* src = (ObjString*)a.heap;
+                ObjString* from = (ObjString*)b.heap;
+                ObjString* to = (ObjString*)c.heap;
+
+                if (from->length == 0) {
+                    runtime_error_at("replace() pattern must be non-empty", node->token);
+                }
+
+                // Pass 1: count non-overlapping matches
+                int count = 0;
+
+                for (int i = 0; i + from->length <= src->length; ) {
+                    if (strncmp(src->chars + i, from->chars, (size_t)from->length) == 0) {
+                        count++;
+                        i += from->length;
+                    } else {
+                        i++;
+                    }
+                }
+
+                int capacity = src->length + count * (to->length - from->length);
+                char* buf = malloc((size_t)capacity + 1);
+
+                if (!buf) {
+                    runtime_error_at("Out of memory in replace()", node->token);
+                }
+
+                // Pass 2: build result
+                int pos = 0;
+                int i = 0;
+
+                while (i + from->length <= src->length) {
+                    if (strncmp(src->chars + i, from->chars, (size_t)from->length) == 0) {
+                        memcpy(buf + pos, to->chars, (size_t)to->length);
+                        pos += to->length;
+                        i += from->length;
+                    } else {
+                        buf[pos++] = src->chars[i++];
+                    }
+                }
+
+                while (i < src->length) {
+                    buf[pos++] = src->chars[i++];
+                }
+
+                buf[pos] = '\0';
+
+                KValue r = make_string_len(buf, pos);
+                free(buf);
+
+                return r;
             }
 
             runtime_error_at("Unknown built-in function", node->token);

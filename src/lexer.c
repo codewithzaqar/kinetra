@@ -256,7 +256,11 @@ Token* lex(const char* source, int* token_count) {
                 strcmp(id_buf, "to_number") == 0 ||
                 strcmp(id_buf, "push") == 0 ||
                 strcmp(id_buf, "pop") == 0 ||
-                strcmp(id_buf, "clear") == 0
+                strcmp(id_buf, "clear") == 0 ||
+                strcmp(id_buf, "upper") == 0 ||
+                strcmp(id_buf, "lower") == 0 ||
+                strcmp(id_buf, "trim") == 0 ||
+                strcmp(id_buf, "replace") == 0
             ) {
                 tokens[count++] = make_token(TOKEN_BUILTIN, id_buf, 0, line);
 
