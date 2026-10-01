@@ -20,6 +20,7 @@ void print_usage() {
     printf("  --version  Print version\n");
     printf("  --help     Show this help messgae\n\n");
     printf("  --gc       Print GC statistics after execution\n");
+    printf("  --check    Validate syntax (and bytecode with --bc) without executing\n");
     printf("Exit codes: 0=ok, 1=lex, 2=parse, 3=runtime, 4=io, 5=codegen, 64=usage\n");
 }
 
@@ -233,6 +234,7 @@ int main(int argc, char** argv) {
     bool repl = false;
     bool raw = false;
     bool gc_stats = false;
+    bool check_only = false;
     const char* filename = NULL;
 
     for (int i = 1; i < argc; i++) {
@@ -258,6 +260,8 @@ int main(int argc, char** argv) {
             return KINETRA_EXIT_OK;
         } else if (strcmp(argv[i], "--gc") == 0) {
             gc_stats = true;
+        } else if (strcmp(argv[i], "--check") == 0) {
+            check_only = true;
         } else {
             filename = argv[i];
         }
@@ -365,6 +369,21 @@ int main(int argc, char** argv) {
             total_ms,
             total_ms / iterations
         );
+
+    if (check_only) {
+        if (use_bc) {
+            bc_compile_program(ast);
+            printf("[Kinetra] OK: bytecode compiled\n");
+        } else {
+            printf("[Kinetra] OK: syntax valid\n");
+        }
+
+        free_ast(ast);
+        free(tokens);
+        free(source);
+
+        return KINETRA_EXIT_OK;
+    }
 
         vm_set_quiet(false);
     } else if (use_bc) {

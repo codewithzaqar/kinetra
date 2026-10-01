@@ -168,6 +168,11 @@ Collection: mark-and-sweep.
 Not collected: C-side temporaries inside built-ins (freed manually),
 AST and token memory (process-lifetime).
 
+## 16. Static check mode
+
+`--check` performs lex + parse only; `--check --bc` additionally
+compiles to bytecode. Neither executes. Exit codes are unchanged (0 valid, 1 lex, 2 parse, 5 codegen). `--check` supersedes `--bench` and `--repl`.
+
 ### Bytecode divergences (documented, intentional)
 
 1. Function declarations are hoisted: callable before their source

@@ -1105,9 +1105,9 @@ static void prescan_functions(ASTNode* program) {
     }
 }
 
-void bc_run_program(ASTNode* ast, bool quiet) {
+bool bc_compile_program(ASTNode* ast) {
     if (!ast || ast->type != NODE_PROGRAM) {
-        return;
+        return false;
     }
 
     chunk.count = 0;
@@ -1124,6 +1124,18 @@ void bc_run_program(ASTNode* ast, bool quiet) {
 
     Token halt_tok = { TOKEN_EOF, "", 0.0, 0, 0 };
     emit_op(OP_HALT, halt_tok);
+
+    return true;
+}
+
+int bc_instruction_count(void) {
+    return chunk.count;
+}
+
+void bc_run_program(ASTNode* ast, bool quiet) {
+    if (!bc_compile_program(ast)) {
+        return;
+    }
 
     gc_set_root_scanner(bc_mark_roots);
     bc_exec(quiet);

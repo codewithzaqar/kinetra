@@ -64,6 +64,7 @@ Note: mingw.org MinGW ships without OpenMP --- use MinGW-w64 for `OPENMP=1`.
 |`--repl`|Start an interactive REPL|
 |`--folds`|Report the parser's constant-fold count|
 |`--raw`|Suppress banner/stage output (for testing)|
+|`--check`|Validate syntax (and bytecode with `--bc`) without executing|
 |`--version`|Print the version and exit|
 |`--help`, `-h`| Show usgae|
 

@@ -9,4 +9,7 @@
 // (exit code 5)
 void bc_run_program(ASTNode* ast, bool quiet);
 
+bool bc_compile_program(ASTNode* ast);
+int bc_instruction_count(void);
+
 #endif

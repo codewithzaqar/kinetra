@@ -1,9 +1,15 @@
 # Kinetra Changelog
 
-## [0.0.3a03] - 2026-10-01
+## [0.0.3a04] - 2026-10-01
 
 ### Added
 
+- Added `--check` dry-run mode (syntax validation without execution).
+- Added `--check --bc` bytecode compilation validation.
+- Added `bc_compile_program()` / `bc_instruction_count()`; split compilation from execution in the bytecode VM.
+- Added per-case `.args` support to the test runner.
+- Added tests 43-45 for check mode.
+- Added SPEC §16 (static check mode).
 - Added `upper(s)`, `lower(s)` (ASCII-only), `trim(s)`, and `replace(s, from, to)` (non-overlapping, left-to-right).
 - Added `gc_array_resize()` with exact byte accounting.
 - Added `push(arr, v)`, `pop(arr)`, `clear(arr)` with reference semantics.

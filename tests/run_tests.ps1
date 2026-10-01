@@ -1,93 +1,133 @@
-# Kinetra test runner (v0.0.1b2)
-$root = Split-Path -Parent $PSScriptRoot
-Set-Location $root
+# Kinetra regression test runner (v0.0.3a04)
+# Usage: pwsh -NoProfile -ExecutionPolicy Bypass -File tests/run_tests.ps1
+#
+# Per-case files (all optional except .knt):
+#   <base>.knt        program under test
+#   <base>.expected   exact stdout (normalized: CR stripped, trailing NL trimmed)
+#   <base>.code       expected exit code (default 0)
+#   <base>.bctest     marker: also run under --bc and compare same expectations
+#   <base>.args       extra CLI flags for this case (whitespace-separated)
+
+Set-Location (Split-Path -Parent $PSScriptRoot)
 
 function Normalize([string]$text) {
-	$text = $text -replace "`r", ""
-	return $text.TrimEnd("`n")
+    $t = $text -replace "`r", ""
+    return $t.TrimEnd("`n")
 }
 
-function Run-Case([string]$rel, [string[]]$extraArgs, [string]$expected, [int]$wantCode) {
-    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) `
-    	("kinetra_out_" + [guid]::NewGuid().ToString("n") + ".txt")
+function Get-ExtraArgs($case) {
+    $argsPath = Join-Path $case.DirectoryName ($case.BaseName + ".args")
 
-    $argsJoined = ($extraArgs -join '')
-    $isWin = [System.IO.Path]::DirectorySeparatorChar -eq '\'
+    if (Test-Path $argsPath -PathType Leaf) {
+        $raw = (Get-Content $argsPath -Raw).Trim()
 
-    if ($isWin) {
-    	cmd /c "`" ./kinetra`" $argsJoined --raw $rel > `"$tmp`" 2>&1"
-    } else {
-    	sh -c "./kinetra $argsJoined --raw $rel > `"$tmp`" 2>&1"
+        if ($raw) {
+            return @($raw -split '\s+')
+        }
     }
 
-    $gotCode = $LASTEXITCODE
+    return @()
+}
 
-    $out = ""
-    if (Test-Path $tmp) {
-    	$out = Get-Content $tmp -Raw
-    	Remove-Item $tmp -ErrorAction SilentlyContinue
-    }
+$cases = Get-ChildItem "tests/*.knt" | Sort-Object Name
 
-    if ($gotCode -ne $wantCode) {
-    	Write-Host " FAIL(exit) $rel : expected exit $wantCode, got $gotCode"
-    	return $false
-    }
-
-    $actual = Normalize $out
-
-    if ($actual -ne $expected) {
-    	Write-Host " FAIL(diff) $rel $($extraArgs -join '')"
-    	Write-Host "--- expected ---"
-    	Write-Host $expected
-    	Write-Host "--- actual ---"
-    	Write-Host $actual
-    	return $false
-    }
-
-    return $true
+if (-not $cases -or @($cases).Count -eq 0) {
+    Write-Host "FATAL: no test cases found in tests/"
+    exit 1
 }
 
 $pass = 0
 $fail = 0
-$cases = Get-ChildItem "tests/*.knt" | Sort-Object Name
 
 foreach ($case in $cases) {
-	$base = $case.FullName -replace '\.knt$', ''
-	$rel = "tests/" + $case.Name
+    $base = $case.BaseName
+    $dir  = $case.DirectoryName
 
-	$wantCode = 0
-	if (Test-Path "$base.code") {
-		$wantCode = [int]((Get-Content "$base.code" -Raw).Trim())
-	}
+    $expectedPath = Join-Path $dir ($base + ".expected")
+    $codePath     = Join-Path $dir ($base + ".code")
+    $bcPath       = Join-Path $dir ($base + ".bctest")
 
-	$expected = ""
-	if (Test-Path "$base.expected") {
-		$expected = Normalize (Get-Content "$base.expected" -Raw)
-	}
+    # Force array so @extra splats correctly even for one flag or none
+    $extra = @(Get-ExtraArgs $case)
 
-	# Pass 1: tree-walk VM
-	if (Run-Case $rel @() $expected $wantCode) {
-		$pass++
-	} else {
-		$fail++
-		continue
-	}
+    $wantCode = 0
 
-	# Pass 2: bytecode VM parity (only for marked cases)
-	if (Test-Path "$base.bctest") {
-		if (Run-Case $rel @("--bc") $expected $wantCode) {
-			Write-Host "PASS $rel (+bc)"
-		} else {
-			$fail++
-			continue
-		}
-	} else {
-		Write-Host "PASS $rel"
-	}
+    if (Test-Path $codePath -PathType Leaf) {
+        $wantCode = [int]((Get-Content $codePath -Raw).Trim())
+    }
+
+    $wantOut = ""
+
+    if (Test-Path $expectedPath -PathType Leaf) {
+        $wantOut = Normalize (Get-Content $expectedPath -Raw)
+    }
+
+    # ---- tree-walk pass (with per-case extra args) ----
+    $gotOut  = Normalize ((& ./kinetra --raw @extra $case.FullName) | Out-String)
+    $gotCode = $LASTEXITCODE
+
+    if ($gotCode -ne $wantCode) {
+        Write-Host "  FAIL(exit) tests/$base.knt : expected exit $wantCode, got $gotCode"
+        Write-Host "--- expected ---"
+        Write-Host $wantOut
+        Write-Host ""
+        Write-Host "--- actual ---"
+        Write-Host $gotOut
+        $fail++
+        continue
+    }
+
+    if ($gotOut -ne $wantOut) {
+        Write-Host "  FAIL(diff) tests/$base.knt"
+        Write-Host "--- expected ---"
+        Write-Host $wantOut
+        Write-Host ""
+        Write-Host "--- actual ---"
+        Write-Host $gotOut
+        $fail++
+        continue
+    }
+
+    # ---- optional bytecode parity pass ----
+    if (Test-Path $bcPath -PathType Leaf) {
+        $bcOut  = Normalize ((& ./kinetra --raw --bc @extra $case.FullName) | Out-String)
+        $bcCode = $LASTEXITCODE
+
+        if ($bcCode -ne $wantCode) {
+            Write-Host "  FAIL(bc-exit) tests/$base.knt : expected exit $wantCode, got $bcCode"
+            Write-Host "--- expected ---"
+            Write-Host $wantOut
+            Write-Host ""
+            Write-Host "--- actual (bc) ---"
+            Write-Host $bcOut
+            $fail++
+            continue
+        }
+
+        if ($bcOut -ne $wantOut) {
+            Write-Host "  FAIL(bc-diff) tests/$base.knt"
+            Write-Host "--- expected ---"
+            Write-Host $wantOut
+            Write-Host ""
+            Write-Host "--- actual (bc) ---"
+            Write-Host $bcOut
+            $fail++
+            continue
+        }
+
+        Write-Host "  PASS tests/$base.knt (+bc)"
+    } else {
+        Write-Host "  PASS tests/$base.knt"
+    }
+
+    $pass++
 }
 
 Write-Host ""
 Write-Host "$pass passed, $fail failed"
 
-if ($fail -ne 0) { exit 1 }
+if ($fail -gt 0) {
+    exit 1
+}
+
 exit 0
